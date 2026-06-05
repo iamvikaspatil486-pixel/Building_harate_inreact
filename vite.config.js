@@ -13,17 +13,18 @@ export default defineConfig({
         description: 'Private campus utility and anonymous chat application',
         theme_color: '#0f172a',
         background_color: '#0f172a',
-        display: 'standalone', // Makes it open full-screen like a real app
+        display: 'standalone',
         orientation: 'portrait',
         icons: [
           {
             src: 'pwa-512x512.svg',
-            sizes: '192x192 512x512', // Tells the device this single file covers both standard sizes smoothly
+            sizes: '192x192 512x512',
             type: 'image/svg+xml',
-            purpose: 'any maskable'    // Allows Android devices to safely crop or round the icon shape
+            purpose: 'any maskable'
           }
         ]
       }
     })
   ]
 });
+
