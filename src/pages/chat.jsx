@@ -7,7 +7,7 @@ const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
 const EXAMPLES = ["truth_teller", "Batman", "princess", "night_viber"];
 
-// ─── Username Picker Component ────────────────────────────────────────────────
+// ─── USERNAME POPUP COMPONENT ────────────────────────────────────────────────
 function UsernamePicker({ onDone, currentUsername, onCancel }) {
   const [name, setName] = useState(currentUsername || "");
   const [error, setError] = useState("");
@@ -20,7 +20,7 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
 
     setLoading(true);
 
-    // Scan recent messages in the last 10 hours for name tracking duplicate checks
+    // Scan recent entries to check handles
     const since = new Date(Date.now() - HOURS * 3600 * 1000).toISOString();
     const { data } = await supabase
       .from("chat_messages")
@@ -47,36 +47,36 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] flex flex-col items-center justify-center px-6 relative">
+    <div className="fixed inset-0 bg-[#090d16]/80 backdrop-blur-sm flex flex-col items-center justify-center px-6 z-50">
       
-      {/* Absolute top-left navigation back control override */}
-      {currentUsername && (
-        <button 
-    onClick={() => navigate(-1)} 
-    className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md shadow-black/20 flex items-center justify-center"
-  >
-    <ArrowLeft size={18} />
-  </button>
-      )}
+      {/* Pop-up Card Container */}
+      <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-7 shadow-2xl relative">
+        
+        {/* Clean Cancel Box on Top Left */}
+        {currentUsername && (
+          <button 
+            onClick={onCancel}
+            className="absolute top-6 left-6 text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-950 border border-slate-800 transition active:scale-90 flex items-center justify-center"
+          >
+            <ArrowLeft size={16} />
+          </button>
+        )}
 
-      {/* Picker Modal Display */}
-      <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-7 shadow-2xl shadow-blue-500/5">
-        <div className="text-center mb-6">
+        <div className="text-center mb-6 mt-4">
           <p className="text-4xl mb-2">🎭</p>
-          <h1 className="text-2xl font-black text-slate-100 tracking-tight">pick your vibe</h1>
+          <h1 className="text-2xl font-black text-slate-100 tracking-tight">set your vibe</h1>
           <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">
             this username deletes in {HOURS} hours or you can change it anytime
           </p>
         </div>
 
-        {/* Input Text Box */}
         <div className={`flex items-center bg-slate-950 border rounded-2xl px-4 py-3 transition-all mb-2 ${error ? "border-red-500/50" : "border-slate-800 focus-within:border-blue-500/60"}`}>
           <span className="text-blue-400 font-black mr-2 text-sm">@</span>
           <input
             value={name}
             onChange={(e) => { setName(e.target.value.replace(/[^a-zA-Z0-9_]/g, '')); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && tryUsername(name)}
-            placeholder="yourusername"
+            placeholder="username"
             maxLength={20}
             autoFocus
             className="flex-1 bg-transparent text-slate-100 text-sm font-semibold outline-none placeholder-slate-700"
@@ -84,7 +84,6 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
         </div>
         {error && <p className="text-red-400 text-xs mb-2 ml-1">{error}</p>}
 
-        {/* Suggestions Quick-Select Fields */}
         <p className="text-[11px] text-slate-500 mb-2 mt-4 font-semibold uppercase tracking-wider">✨ suggestions</p>
         <div className="flex flex-wrap gap-2 mb-6">
           {EXAMPLES.map((n) => (
@@ -93,8 +92,8 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
               onClick={() => { setName(n); setError(""); }}
               className={`text-xs font-bold px-3 py-2 rounded-full border transition-all active:scale-95 ${
                 name === n
-                  ? "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-600/20"
-                  : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200"
+                  ? "bg-blue-600 text-white border-blue-500"
+                  : "bg-slate-950 text-slate-400 border-slate-800"
               }`}
             >
               @{n}
@@ -102,25 +101,20 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
           ))}
         </div>
 
-        {/* Action Button */}
         <button
           onClick={() => tryUsername(name)}
           disabled={loading || !name.trim()}
-          className="w-full py-3.5 rounded-2xl font-black text-sm text-white transition-all active:scale-95 disabled:opacity-30 shadow-xl shadow-blue-600/10"
+          className="w-full py-3.5 rounded-2xl font-black text-sm text-white transition-all active:scale-95 disabled:opacity-30"
           style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
         >
-          {loading ? "checking…" : "enter chat →"}
+          {loading ? "checking…" : "save username →"}
         </button>
-
-        <p className="text-center text-[11px] text-slate-600 mt-3">
-          if your name is taken, we'll add _01 automatically
-        </p>
       </div>
     </div>
   );
 }
 
-// ─── Main Chat Room Component ─────────────────────────────────────────────────
+// ─── MAIN CHAT ROOM COMPONENT ──────────────────────────────────────────────────
 export default function Chat() {
   const navigate = useNavigate();
   const [username, setUsername] = useState(null);
@@ -128,6 +122,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  
   const bottomRef = useRef();
   const inputRef = useRef();
 
@@ -136,7 +131,7 @@ export default function Chat() {
   const batchId = batch?.batchId;
   const batchName = batch?.batchName || "Batch Chat";
 
-  // Check storage token validation on mount
+  // Check 10-hour lease duration logic
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (raw) {
@@ -149,7 +144,7 @@ export default function Chat() {
     }
   }, []);
 
-  // Fetch messages and establish secure real-time listener subscription loop
+  // Sync messaging updates via channel pipelines
   useEffect(() => {
     if (!username || !batchId) return;
     fetchMessages();
@@ -175,7 +170,7 @@ export default function Chat() {
   const fetchMessages = async () => {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id, username, message, created_at")
+      .select("id, username, message")
       .eq("batch_id", batchId)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -197,74 +192,75 @@ export default function Chat() {
     inputRef.current?.focus();
   };
 
-  const handleUsernameDone = (newUsername) => {
-    setUsername(newUsername);
-    setIsEditingUsername(false);
-  };
-
-  if (!username || isEditingUsername) {
-    return (
-      <UsernamePicker 
-        onDone={handleUsernameDone} 
-        currentUsername={username} 
-        onCancel={() => setIsEditingUsername(false)} 
-      />
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
+    <div className="fixed inset-0 bg-[#090d16] text-slate-100 flex flex-col overflow-hidden overscroll-none">
 
-      {/* Header Layout */}
-      <header className="sticky top-0 z-20 border-b border-slate-900 px-4 h-14 flex items-center gap-3 backdrop-blur-md bg-[#090d16]/80">
+      {/* RENDER POPUP ON TOP IF TRUE */}
+      {(!username || isEditingUsername) && (
+        <UsernamePicker 
+          onDone={(name) => { setUsername(name); setIsEditingUsername(false); }} 
+          currentUsername={username} 
+          onCancel={() => setIsEditingUsername(false)} 
+        />
+      )}
+
+      {/* HEADER BAR */}
+      <header className="flex-shrink-0 h-16 border-b border-slate-900/60 px-4 flex items-center gap-3 bg-[#090d16]/90 backdrop-blur-md z-10">
+        
         <button 
-    onClick={() => navigate(-1)} 
-    className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md shadow-black/20 flex items-center justify-center"
-  >
-    <ArrowLeft size={18} />
-  </button>
-
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-slate-200 text-sm truncate">{batchName}</p>
-          <p className="text-[11px] text-slate-500">anonymous batch chat</p>
-        </div>
-
-        {/* Identity Token Chip */}
-        <button
-          onClick={() => setIsEditingUsername(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 active:scale-95 transition hover:bg-blue-500/10"
+          onClick={() => navigate(-1)} 
+          className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md flex items-center justify-center flex-shrink-0"
         >
-          <span className="text-blue-400 font-bold text-[11px]">@{username}</span>
-          <span className="text-[9px] text-slate-500 font-medium">change</span>
+          <ArrowLeft size={18} />
         </button>
+
+        {/* Batch Name display container filled with fluid, shifting gradient color flows */}
+<div 
+  className="flex-1 min-w-0 border border-blue-500/30 rounded-2xl px-4 h-11 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] animate-gradient-xy bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600"
+  style={{ backgroundSize: "200% 200%" }}
+>
+  <p className="font-extrabold text-white text-sm truncate uppercase tracking-wider drop-shadow-sm">
+    {batchName}
+  </p>
+</div>
+
+
+        {/* HEADER RIGHT: Username Display Box with Green Status Dot */}
+        {username && (
+          <button
+            onClick={() => setIsEditingUsername(true)}
+            className="flex items-center gap-2 px-3.5 h-11 rounded-2xl border border-slate-800 bg-slate-900 active:scale-95 transition flex-shrink-0 shadow-md"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+            <span className="text-slate-200 font-bold text-xs max-w-[80px] truncate">@{username}</span>
+          </button>
+        )}
+
       </header>
 
-      {/* Messages Stream Feed Panel */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3 max-w-3xl w-full mx-auto">
+      {/* CHAT CONTENT */}
+      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-3xl w-full mx-auto overscroll-contain">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-2 text-center">
-            <p className="text-4xl">💬</p>
-            <p className="font-bold text-slate-400">no messages yet</p>
-            <p className="text-slate-600 text-sm">start the harate as @{username}</p>
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <p className="text-4xl mb-2">💬</p>
+            <p className="font-bold text-slate-400">No messages yet</p>
+            <p className="text-slate-600 text-sm">Send a message to start the conversation</p>
           </div>
         ) : (
           messages.map((msg) => {
             const isMe = msg.username === username;
             return (
               <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                <div className={`flex flex-col max-w-[78%] ${isMe ? "items-end" : "items-start"}`}>
+                <div className="flex flex-col max-w-[80%] space-y-1">
                   
-                  {/* Alias Header Handles for incoming messages */}
-                  {!isMe && (
-                    <p className="text-[10px] font-bold text-sky-400 mb-1 ml-1.5">@{msg.username}</p>
-                  )}
+                  {/* ALIAS TRACK HANDLE: Placed top-right relative to the bubble */}
+                  <p className={`text-[10px] font-bold text-sky-400/90 px-1 ${isMe ? "text-right" : "text-left"}`}>
+                    @{msg.username}
+                  </p>
 
-                  {/* Fully-Rounded Symmetrical Sized Chat Pill Bubbles */}
                   <div
-                    className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm ${
-                      isMe
-                        ? "text-white font-medium"
-                        : "bg-[#1e293b] text-slate-100 border border-slate-800/40"
+                    className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm break-words max-w-full ${
+                      isMe ? "text-white font-medium" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"
                     }`}
                     style={isMe ? { background: "linear-gradient(135deg, #2563eb, #0284c7)" } : {}}
                   >
@@ -278,25 +274,25 @@ export default function Chat() {
         <div ref={bottomRef} />
       </main>
 
-      {/* Message Text Input Footer Section */}
+      {/* FOOTER BAR */}
       <div
-        className="border-t border-slate-900 px-3 py-3 flex items-center gap-2 bg-[#090d16]"
+        className="flex-shrink-0 border-t border-slate-900/60 px-3 py-3 flex items-center gap-2 bg-[#090d16] z-10"
         style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
       >
-        <div className="flex-1 flex items-center bg-[#0f172a] border border-slate-800 rounded-2xl px-4 py-2.5 gap-2 focus-within:border-blue-500/50 transition">
+        <div className="flex-1 flex items-center bg-[#0f172a] border border-slate-800 rounded-2xl px-4 py-2.5 gap-2 focus-within:border-blue-500/50 transition min-w-0">
           <input
             ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={`message as @${username}…`}
-            className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none"
+            placeholder={username ? `message as @${username}…` : "Type a message..."}
+            className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0"
           />
         </div>
         <button
           onClick={send}
           disabled={!text.trim() || sending}
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0 shadow-lg shadow-blue-600/5"
+          className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
           style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
         >
           <Send size={16} />
