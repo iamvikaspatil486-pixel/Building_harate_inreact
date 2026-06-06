@@ -4,7 +4,7 @@ import { Home, PlusSquare, MessageCircle, Menu } from "lucide-react";
 
 const tabs = [
   { icon: Home,          label: "Home",  path: "/home"   },
-  { icon: PlusSquare,    label: "Post",  path: "/app-post" },
+  { icon: PlusSquare,    label: "Post",  path: "/add-post" },
   { icon: MessageCircle, label: "Chat",  path: "/chat"   },
 ];
 
