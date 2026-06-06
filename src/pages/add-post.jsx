@@ -10,7 +10,7 @@ export default function AddPost() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Handle picking files from mobile gallery
+  // Handle image/video selection from mobile gallery
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -24,11 +24,11 @@ export default function AddPost() {
     setSelectedMedia((prev) => [...prev, ...newMedia]);
   };
 
-  // Remove file thumbnail from view array
+  // Remove a selected file preview before uploading
   const removeMedia = (index) => {
     setSelectedMedia((prev) => {
       const updated = [...prev];
-      URL.revokeObjectURL(updated[index].previewUrl);
+      URL.revokeObjectURL(updated[index].previewUrl); // Prevent memory leaks
       updated.splice(index, 1);
       return updated;
     });
@@ -39,63 +39,71 @@ export default function AddPost() {
     setLoading(true);
 
     try {
-      // 1. Get the authenticated user session from Supabase Auth
+      // 1. Get the authenticated user email from Supabase Auth
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("User not authenticated");
       const userEmail = session.user.email;
 
-      // 2. Fetch your clean primary key ID from your custom 'students' table using the email
+      // 2. Fetch all necessary columns from your custom 'students' table
       const { data: studentData, error: studentError } = await supabase
         .from("students")
-        .select("id")
+        .select("id, nickname, full_name, batch_id")
         .eq("email", userEmail)
         .single();
 
       if (studentError || !studentData) {
-        throw new Error("Could not verify your student profile record mapping");
+        throw new Error("Could not verify your student profile record matching");
       }
-      
-      const trueStudentId = studentData.id;
 
-      // 3. Insert into the main 'posts' table using the true student relation ID
+      // 3. Build the core posts insert object dynamically based on nickname availability
+      const postPayload = {
+        user_id: studentData.id,
+        caption: caption.trim(),
+        full_name: studentData.full_name,
+        batch_id: studentData.batch_id,
+      };
+
+      // Only add nickname key if it actually exists on their profile record
+      if (studentData.nickname && studentData.nickname.trim() !== "") {
+        postPayload.nickname = studentData.nickname.trim();
+      }
+
+      // 4. Insert into the main 'posts' table
       const { data: postData, error: postError } = await supabase
         .from("posts")
-        .insert({
-          user_id: trueStudentId, // Matches your student ID relational constraint
-          caption: caption.trim(),
-        })
+        .insert(postPayload)
         .select()
         .single();
 
       if (postError) throw postError;
       const postId = postData.id;
 
-      // 4. Upload files to your 'post-media' bucket and insert links to 'post_images'
+      // 5. Upload files to your 'post-media' bucket and link them to 'post_images'
       if (selectedMedia.length > 0) {
         const uploadPromises = selectedMedia.map(async (media, index) => {
           const fileExt = media.file.name.split(".").pop();
-          const fileName = `${trueStudentId}_${Date.now()}_${index}.${fileExt}`;
+          const fileName = `${studentData.id}_${Date.now()}_${index}.${fileExt}`;
           const filePath = `posts/${fileName}`;
 
-          // Upload raw media file to your bucket
+          // Upload raw media binary directly to bucket folder
           const { error: uploadError } = await supabase.storage
             .from("post-media")
             .upload(filePath, media.file);
 
           if (uploadError) throw uploadError;
 
-          // Get public URL path string
+          // Retrieve verified public asset URL path mapping
           const { data: { publicUrl } } = supabase.storage
             .from("post-media")
             .getPublicUrl(filePath);
 
-          // Insert directly matching your exact 'post_images' schema matrix
+          // Perform transactional insertion into 'post_images'
           const { error: imageError } = await supabase
             .from("post_images")
             .insert({
               post_id: postId,
-              image_url: publicUrl, // Matches your specific 'image_url' column label
-              position: index + 1,  // Carousel layout sequencing integer
+              image_url: publicUrl,
+              position: index + 1, // Layout listing order ordering tag index
             });
 
           if (imageError) throw imageError;
@@ -104,20 +112,21 @@ export default function AddPost() {
         await Promise.all(uploadPromises);
       }
 
-      // Everything succeeded, navigate home safely
+      // Everything succeeded, clear states and navigate smoothly back home
       navigate("/home");
     } catch (error) {
-      console.error(error);
-      alert(error.message || "Failed to publish post setup profile constraints");
+      console.error("Post Creation Failure Detail Log:", error);
+      alert(error.message || "Failed to publish your content feed setup");
     } finally {
       setLoading(false);
     }
   };
 
   return (
+    /* IMMOVABLE LAYOUT SYSTEM WRAPPER */
     <div className="fixed inset-0 bg-[#090d16] text-slate-100 flex flex-col overflow-hidden overscroll-none">
       
-      {/* HEADER CONTROL HUB */}
+      {/* HEADER CONTROL HUB COMPONENT */}
       <header className="flex-shrink-0 h-16 border-b border-slate-900/60 px-4 flex items-center justify-between bg-[#090d16]/90 backdrop-blur-md z-10">
         <button 
           onClick={() => navigate(-1)} 
@@ -132,7 +141,7 @@ export default function AddPost() {
         <button
           onClick={handleShare}
           disabled={loading || (!caption.trim() && !selectedMedia.length)}
-          className="px-4 py-2 rounded-xl text-xs font-black text-white active:scale-95 transition disabled:opacity-20 flex items-center gap-1.5 shadow-lg"
+          className="px-4 py-2 rounded-xl text-xs font-black text-white active:scale-95 transition disabled:opacity-20 flex items-center gap-1.5 shadow-lg shadow-blue-600/10"
           style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
         >
           {loading ? (
@@ -146,7 +155,7 @@ export default function AddPost() {
         </button>
       </header>
 
-      {/* TEXT ENTRY AREA */}
+      {/* TEXT AREA WORK SPACE PANELS */}
       <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-xl w-full mx-auto overscroll-contain flex flex-col">
         <textarea
           value={caption}
@@ -157,7 +166,7 @@ export default function AddPost() {
           className="w-full flex-1 min-h-[120px] bg-transparent text-slate-200 placeholder-slate-700 text-sm outline-none resize-none leading-relaxed"
         />
 
-        {/* HORIZONTAL CAROUSEL PREVIEW ROW */}
+        {/* IMAGE/VIDEO CAROUSEL PREVIEW BLOCKS */}
         {selectedMedia.length > 0 && (
           <div className="flex gap-3 overflow-x-auto pb-2 pt-1 snap-x scrollbar-hide flex-shrink-0">
             {selectedMedia.map((media, idx) => (
@@ -185,7 +194,7 @@ export default function AddPost() {
         )}
       </main>
 
-      {/* BOTTOM GALLERY ACTION BLOCK */}
+      {/* FIXED BOTTOM ACTION PANEL TOOLBAR */}
       <div 
         className="flex-shrink-0 border-t border-slate-900/60 px-4 py-3 bg-[#090d16] z-10 flex gap-3"
         style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
@@ -193,7 +202,7 @@ export default function AddPost() {
         <button
           onClick={() => { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); }}
           disabled={loading}
-          className="flex-1 h-12 bg-slate-900 border border-slate-800/80 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 active:scale-[0.98] transition"
+          className="flex-1 h-12 bg-slate-900 border border-slate-800/80 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 active:scale-[0.98] transition hover:bg-slate-850"
         >
           <ImageIcon size={16} className="text-blue-400" />
           Add Photo
@@ -202,7 +211,7 @@ export default function AddPost() {
         <button
           onClick={() => { fileInputRef.current.accept = "video/*"; fileInputRef.current.click(); }}
           disabled={loading}
-          className="flex-1 h-12 bg-slate-900 border border-slate-800/80 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 active:scale-[0.98] transition"
+          className="flex-1 h-12 bg-slate-900 border border-slate-800/80 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-300 active:scale-[0.98] transition hover:bg-slate-850"
         >
           <Film size={16} className="text-sky-400" />
           Add Video
