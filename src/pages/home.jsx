@@ -216,26 +216,63 @@ function PostCard({ post, currentUser }) {
         </div>
 
         {/* Images */}
+        {/* Images */}
         {images.length > 0 && (
           <div className="relative w-full bg-gray-100" style={{ aspectRatio: "1/1" }} onClick={handleImgTap}>
-            <img src={images[imgIdx]?.image_url} alt="" className="w-full h-full object-cover" />
+            
+            {/* 🚀 START OF INSTAGRAM-STYLE SWIPER */}
+            <div className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-none scroll-smooth">
+              {images
+                .sort((a, b) => a.position - b.position) // Sorts images by layout position
+                .map((image, index) => (
+                  <div 
+                    key={image.id || index} 
+                    className="w-full h-full flex-shrink-0 snap-start snap-always relative"
+                  >
+                    {image.image_url.endsWith('.mp4') ? (
+                      <video 
+                        src={image.image_url} 
+                        className="w-full h-full object-cover" 
+                        controls 
+                        muted 
+                        loop
+                      />
+                    ) : (
+                      <img 
+                        src={image.image_url} 
+                        alt="" 
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
+                ))}
+            </div>
 
-            {/* Double tap heart */}
-            {heartPop && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Heart size={90} className="fill-white text-white drop-shadow-2xl" style={{ animation: "heartPop 0.8s ease forwards" }} />
-              </div>
-            )}
-
+            {/* Instagram Dot Indicators */}
             {images.length > 1 && (
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
-                {images.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={(e) => { e.stopPropagation(); setImgIdx(i); }}
-                    className={`rounded-full transition-all ${i === imgIdx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/60"}`}
+              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
+                {images.map((_, dotIndex) => (
+                  <div
+                    key={dotIndex}
+                    className="w-1.5 h-1.5 rounded-full bg-white/50 border border-black/10 shadow-sm"
                   />
                 ))}
+              </div>
+            )}
+            
+            {/* Image Count Badge */}
+            {images.length > 1 && (
+              <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-black/70 text-[10px] font-black text-slate-200 tracking-wider backdrop-blur-md z-10">
+                Multi-Post
+              </div>
+            )}
+            {/* 🚀 END OF INSTAGRAM-STYLE SWIPER */}
+
+            {/* Double tap heart animation (Kept safely on top of the slider layer) */}
+            {heartPop && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                <Heart size={90} className="fill-white text-white drop-shadow-2xl" style={{ animation: "heartPop 0.8s ease forwards" }} />
               </div>
             )}
           </div>
