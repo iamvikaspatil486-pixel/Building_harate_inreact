@@ -8,24 +8,32 @@ import Chat from './pages/chat';
 import Navigation from './components/navigation';
 
 // 🚀 INNER LAYOUT WRAPPER: Handles path checking inside the Router context
+// ─── INNER LAYOUT WRAPPER ───────────────────────────────────────────────────
 function AppLayout({ session }) {
-  const location = useLocation(); // Tracks real-time route state switches
+  const location = useLocation(); // Watches route switches to toggle navigation
+
+  // 🚀 CREATE A HIDE CONDITION: Add any paths here where the nav bar should disappear
+  const hideNavBar = 
+    location.pathname === '/chat' || 
+    location.pathname === '/comments' || 
+    location.pathname.startsWith('/comments/'); // Handles paths like /comments/:postId
 
   return (
     <div className="min-h-screen bg-slate-900">
       <Routes>
-        {/* If logged in, redirect "/" or "/login" straight to "/home" */}
+        {/* Auth Fallbacks */}
         <Route path="/" element={session ? <Navigate to="/home" /> : <Login />} />
         <Route path="/login" element={session ? <Navigate to="/home" /> : <Login />} />
         
-        {/* Protect routes: If NOT logged in, kick them back to login screen */}
+        {/* Protected Application Routes */}
         <Route path="/home" element={session ? <Home /> : <Navigate to="/login" />} />
         <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" />} />
-       <Route path="/add-post" element={session?<AddPost/> : <Navigate to ="/login"/>}/>
+        <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/login" />} />
+        {/* Make sure your comments route is defined here */}
       </Routes>
 
-      {/* 🚀 FIXED: Dynamic location matching to hide navigation on the chat screen instantly */}
-      {session && location.pathname !== '/chat' && <Navigation />}
+      {/* 🚀 FIXED LINE: Only render navigation if user has a session AND we shouldn't hide it */}
+      {session && !hideNavBar && <Navigation />}
     </div>
   );
 }
