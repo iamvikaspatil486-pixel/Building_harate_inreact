@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { supabase } from './lib/supabase'; 
 import Login from './components/Login';
 import Home from './pages/home';
+import AddPost from './pages/add-post';
 import Chat from './pages/chat';
 import Navigation from './components/navigation';
 
@@ -20,6 +21,7 @@ function AppLayout({ session }) {
         {/* Protect routes: If NOT logged in, kick them back to login screen */}
         <Route path="/home" element={session ? <Home /> : <Navigate to="/login" />} />
         <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" />} />
+       <Route path="/add-post" element={session?<AddPost/> : <Navigate to ="/login"/>}/>
       </Routes>
 
       {/* 🚀 FIXED: Dynamic location matching to hide navigation on the chat screen instantly */}
