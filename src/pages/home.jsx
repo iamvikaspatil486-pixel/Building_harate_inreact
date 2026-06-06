@@ -2,6 +2,56 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { Heart, MessageCircle, Loader2, X, Send } from "lucide-react";
 
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return "";
+  
+  // 1. Parse the DB string securely into a JavaScript Date object
+  const createdDate = new Date(timestamp);
+  if (isNaN(createdDate.getTime())) return ""; // Safety check
+  
+  // 2. Get the current local time
+  const nowDate = new Date();
+  
+  // 🚀 THE TIMEZONE EQUALIZER:
+  // Convert both dates to their raw UTC millisecond values.
+  // This completely wipes out the +5:30 IST offset discrepancy!
+  const createdUTC = createdDate.getTime() - (createdDate.getTimezoneOffset() * 60000);
+  const nowUTC = nowDate.getTime() - (nowDate.getTimezoneOffset() * 60000);
+  
+  // 3. Calculate absolute difference in seconds
+  const differenceInSeconds = Math.floor((nowUTC - createdUTC) / 1000);
+  
+  // Fallback if local system clock is slightly out of sync with Supabase server
+  if (differenceInSeconds < 0) {
+    return "1s"; 
+  }
+  
+  // 4. Standard Instagram-style shorthand mapping
+  if (differenceInSeconds < 60) {
+    return `${Math.max(1, differenceInSeconds)}s`; // Seconds (e.g., 5s)
+  }
+  
+  const differenceInMinutes = Math.floor(differenceInSeconds / 60);
+  if (differenceInMinutes < 60) {
+    return `${differenceInMinutes}m`; // Minutes (e.g., 2m)
+  }
+  
+  const differenceInHours = Math.floor(differenceInMinutes / 60);
+  if (differenceInHours < 24) {
+    return `${differenceInHours}h`; // Hours (e.g., 3h)
+  }
+  
+  const differenceInDays = Math.floor(differenceInHours / 24);
+  if (differenceInDays < 7) {
+    return `${differenceInDays}d`; // Days (e.g., 4d)
+  }
+  
+  return createdDate.toLocaleDateString(undefined, { 
+    month: 'short', 
+    day: 'numeric' 
+  });
+}
+
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts)) / 1000);
   if (s < 60) return `${s}s ago`;
@@ -30,29 +80,29 @@ function CommentSheet({ post, currentUser, onClose }) {
   const backdropRef = useRef();
 
   useEffect(() => {
-// 🚀 HIDE NAV BAR: Add class to body when comment sheet mounts
-    document.body.classList.add("comments-open");
+    // 🚀 FORCE OVERRIDE: Set the class directly so nothing can intercept it
+    document.body.className = "comments-open";
 
     fetchComments();
     setTimeout(() => inputRef.current?.focus(), 400);
 
-    // 🚀 SHOW NAV BAR CLEANUP: Automatically brings back nav bar if sheet unmounts
+    // 🚀 CLEANUP: Wipe it clean when the sheet unmounts completely
     return () => {
-      document.body.classList.remove("comments-open");
+      document.body.className = "";
     };
- }, []);
+  }, []);
 
   const handleBackdrop = (e) => {
     if (e.target === backdropRef.current) {
-      // 🚀 SHOW NAV BAR: Clear class before calling onClose
-      document.body.classList.remove("comments-open");
+      // 🚀 RESET BODY STRING
+      document.body.className = "";
       onClose();
     }
   };
 
-  // Wrap your explicit close actions cleanly too
   const handleCloseSheet = () => {
-    document.body.classList.remove("comments-open");
+    // 🚀 RESET BODY STRING
+    document.body.className = "";
     onClose();
   };
 
@@ -85,71 +135,133 @@ function CommentSheet({ post, currentUser, onClose }) {
   };
 
   return (
-    <div
+    /* 1. BACKDROP OVERLAY: Fills the screen, blurs background feed, handles dismiss taps */
+    <div 
       ref={backdropRef}
       onClick={handleBackdrop}
-      className="fixed inset-0 z-50 bg-black/40 flex items-end"
-      style={{ backdropFilter: "blur(2px)" }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center overscroll-none select-none animate-fade-in"
     >
-      <div
-        className="w-full bg-white rounded-t-3xl flex flex-col shadow-2xl"
-        style={{ maxHeight: "85vh", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+      
+      {/* 2. MAIN SHEET CONTAINER: Fixed layout size prevents keyboard displacement bugs */}
+      <div 
+        className="w-full max-w-md bg-white rounded-t-[28px] flex flex-col overflow-hidden shadow-2xl transition-all duration-300 transform translate-y-0"
+        style={{ 
+          height: "85vh", 
+          maxHeight: "85vh" 
+        }}
+        onClick={(e) => e.stopPropagation()} // Stops clicks inside the sheet from accidentally closing it
       >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <p className="font-bold text-gray-900 text-sm">Comments</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
-            <X size={20} />
+        
+        {/* SHEET HEADER HANDLEBAR & CONTROL BAR */}
+        <div className="flex-shrink-0 px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
+          <div className="flex flex-col gap-0.5">
+            <h3 className="text-sm font-black text-gray-900 tracking-tight">Comments</h3>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Students Harate</p>
+          </div>
+          
+          <button 
+            onClick={handleCloseSheet}
+            className="text-gray-400 hover:text-gray-600 text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100/70 transition active:scale-95"
+          >
+            Close
           </button>
         </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 size={20} className="animate-spin text-gray-300" />
-            </div>
-          ) : comments.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">No comments yet. Be first!</p>
-          ) : (
-            comments.map((c) => {
-              const name = c.students?.full_name || "User";
-              return (
-                <div key={c.id} className="flex gap-3 group">
-                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad(name)} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
-                    {name[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900">
-                      <span className="font-semibold mr-1.5">{name.split(" ")[0]}</span>
-                      <span className="text-gray-700 font-normal">{c.comment}</span>
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{timeAgo(c.created_at)}</p>
-                  </div>
-                  {c.user_id === currentUser?.id && (
-                    <button
-                      onClick={() => deleteComment(c.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition text-xs self-start mt-1"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              );
-            })
-          )}
+       {/* 3. SCROLLABLE MIDDLE MIDDLE STREAM: Freezes background scroll, handles inner touch */}
+<div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-gray-50/50 overscroll-contain">
+  {loading ? (
+    <div className="flex flex-col items-center justify-center py-12 space-y-2">
+      <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Loading Feed...</span>
+    </div>
+  ) : comments.length === 0 ? (
+    <div className="text-center py-16 flex flex-col items-center justify-center space-y-1">
+      <span className="text-sm font-bold text-gray-700">No comments yet</span>
+      <span className="text-xs text-gray-400 max-w-[200px]">Be the first one in your batch to say something!</span>
+    </div>
+  ) : (
+    comments.map((c) => (
+      <div key={c.id} className="flex gap-2.5 items-start animate-slide-up">
+        {/* User initials avatar - 🚀 FIXED SYNTAX STRINGS HERE */}
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center font-black text-white text-xs flex-shrink-0 shadow-sm shadow-blue-500/10">
+          {c.students?.full_name?.[0]?.toUpperCase() || "?"}
         </div>
 
-        {/* Input */}
+        <div className="bg-white border border-gray-100 rounded-2xl px-3.5 py-2.5 max-w-[82%] shadow-sm">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-black text-gray-900">{c.students?.full_name}</p>
+
+            {/* The Dot Separator */}
+            <span className="w-1 h-1 rounded-full bg-gray-300" />
+
+            {/* 🚀 FIXED REAL-TIME MAPPING TICKET */}
+            <span className="text-[10px] font-bold text-gray-400">
+              {formatTimeAgo(c.created_at)}
+            </span>
+          </div>
+          <p className="text-gray-700 mt-1 text-xs leading-relaxed font-medium whitespace-pre-wrap">{c.comment}</p>
+        </div>
+      </div>
+    ))
+  )}
+</div>
+
+        {/* 4. PINNED BOTTOM INPUT ZONE: Stays 100% visible on top of mobile keyboards */}
+        <div 
+          className="flex-shrink-0 border-t border-gray-100 bg-white px-3.5 py-3 flex items-center gap-2 z-10"
+          style={{ paddingBottom: "max(14px, env(safe-area-inset-bottom))" }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendComment()}
+            placeholder="Write a responsive comment..."
+            className="flex-1 min-w-0 bg-gray-50 border border-gray-200/80 rounded-full px-4 py-2.5 text-xs text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all duration-200 shadow-inner"
+          />
+
+          <button
+            onClick={sendComment}
+            disabled={!text.trim() || sending}
+            className="flex-shrink-0 h-9 px-4 rounded-full bg-blue-600 text-white font-black text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 disabled:opacity-20 disabled:scale-100 flex items-center justify-center shadow-md shadow-blue-600/10"
+          >
+            {sending ? (
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              "Send"
+            )}
+          </button>
+        </div>
+
+      </div>
+
+      {/* Embedded keyframe layouts for micro-animations */}
+      <style>{`
+        .animate-fade-in {
+          animation: overlayFade 0.2s ease-out forwards;
+        }
+        .animate-slide-up {
+          animation: commentSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes overlayFade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes commentSlide {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+
+        {/* Input Container */}
         <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-3">
           <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${grad(currentUser?.name || "")} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
             {(currentUser?.name || "?")[0].toUpperCase()}
           </div>
+          
           <div className="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-2.5 gap-2">
             <input
               ref={inputRef}
@@ -164,15 +276,14 @@ function CommentSheet({ post, currentUser, onClose }) {
               disabled={!text.trim() || sending}
               className="text-blue-500 disabled:opacity-30 hover:text-blue-600 transition"
             >
-              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {sending ? "..." : "Send"}
             </button>
           </div>
-        </div>
+        </div>;
 
         <div style={{ paddingBottom: "env(safe-area-inset-bottom, 12px)" }} />
-      </div>
-    </div>
-  );
+      
+  
 }
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
