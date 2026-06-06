@@ -292,6 +292,7 @@ function PostCard({ post, currentUser }) {
   const [likeCount, setLikeCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
+  const [activeOverlayImage, setActiveOverlayImage] = useState(null);
   const lastTap = useRef(0);
   const [heartPop, setHeartPop] = useState(false);
 
@@ -372,6 +373,7 @@ function PostCard({ post, currentUser }) {
                         alt="" 
                         className="w-full h-full object-cover"
                         loading="lazy"
+                       onClick={() => setActiveOverlayImage(image.image_url)}
                       />
                     )}
                   </div>
@@ -404,6 +406,12 @@ function PostCard({ post, currentUser }) {
                 <Heart size={90} className="fill-white text-white drop-shadow-2xl" style={{ animation: "heartPop 0.8s ease forwards" }} />
               </div>
             )}
+{activeOverlayImage && (
+        <ImageOverlayModal 
+          imageUrl={activeOverlayImage} 
+          onClose={() => setActiveOverlayImage(null)} 
+        />
+      )}
           </div>
         )}
 
@@ -533,6 +541,57 @@ export default function Home() {
 
       </div>
     </>
+  );
+}
+
+// ─── FULL SCREEN IMAGE VIEWER MODAL ──────────────────────────────────────────
+function ImageOverlayModal({ imageUrl, onClose }) {
+  if (!imageUrl) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-fade-in"
+      onClick={onClose}
+    >
+      {/* Top Status Bar Control */}
+      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent z-10">
+        <span className="text-[11px] font-black text-white/60 tracking-widest uppercase">Media Viewer</span>
+        <button 
+          onClick={onClose}
+          className="h-8 px-4 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs transition border border-white/10 backdrop-blur-md"
+        >
+          Close
+        </button>
+      </div>
+
+      {/* Main Image View Track */}
+      <div className="w-full max-h-screen p-2 flex items-center justify-center select-none">
+        <img 
+          src={imageUrl} 
+          alt="Expanded view" 
+          className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl animate-scale-up"
+          onClick={(e) => e.stopPropagation()} // Prevents tapping the image itself from closing it
+        />
+      </div>
+
+      {/* Core Embedded CSS for Cinematic Transitions */}
+      <style>{`
+        @keyframes modalFade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes imagePop {
+          from { opacity: 0; transform: scale(0.93); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in {
+          animation: modalFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-scale-up {
+          animation: imagePop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+      `}</style>
+    </div>
   );
 }
 
