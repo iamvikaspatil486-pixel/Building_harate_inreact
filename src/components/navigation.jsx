@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, PlusSquare, MessageCircle, Menu } from "lucide-react";
 
@@ -10,11 +10,31 @@ const tabs = [
 
 export default function Navigation() {
   const [expanded, setExpanded] = useState(false);
+  const [hideForComments, setHideForComments] = useState(false); // 🚀 Track sheet visibility
   const location = useLocation();
   const navigate = useNavigate();
 
+  // 🚀 LISTEN FOR THE COMMENT SHEET TO OPEN OR CLOSE
+  useEffect(() => {
+    // Check current class state immediately on mount
+    setHideForComments(document.body.classList.contains("comments-open"));
+
+    const handleMutation = () => {
+      setHideForComments(document.body.classList.contains("comments-open"));
+    };
+
+    // Watch the body element for changes to its class attribute
+    const observer = new MutationObserver(handleMutation);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+
+    return () => observer.disconnect(); // Clean up observer on unmount
+  }, []);
+
   // Hide completely on login/root screen
   if (location.pathname === "/" || location.pathname === "/login") return null;
+
+  // 🚀 VAPORIZE THE FLOATING BALL IF THE COMMENT SHEET IS ACTIVE
+  if (hideForComments) return null;
 
   const go = (path) => {
     setExpanded(false);
@@ -42,7 +62,7 @@ export default function Navigation() {
         style={{
           bottom: "24px",
           right: "16px",
-          left: expanded ? "16px" : "auto", // Dynamically stretches across when expanded
+          left: expanded ? "16px" : "auto", 
           transition: "left 0.4s cubic-bezier(0.25, 1, 0.5, 1)",
         }}
       >
@@ -55,13 +75,11 @@ export default function Navigation() {
             boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 1px 8px rgba(0,0,0,0.06)",
             border: "1px solid rgba(230, 230, 230, 0.7)",
             
-            // Layout dimension morphing
             height: "56px",
             width: expanded ? "100%" : "56px", 
             borderRadius: expanded ? "24px" : "50%",
             padding: expanded ? "0 8px" : "0",
             
-            // Smooth morphing timings
             transition: "width 0.4s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.3s ease, padding 0.4s ease",
           }}
         >
@@ -90,13 +108,12 @@ export default function Navigation() {
               })}
             </div>
           ) : (
-            // ── COLLAPSED STATE (Single Trigger Trigger Button) ──
+            // ── COLLAPSED STATE (Single Trigger Button) ──
             <button
               onClick={() => setExpanded(true)}
               className="flex items-center justify-center w-full h-full text-gray-700 active:scale-90 transition-transform duration-150"
               aria-label="Open navigation menu"
             >
-              {/* Dynamic Icon changes based on current route or default menu */}
               {(() => {
                 const CurrentIcon = tabs.find((t) => t.path === location.pathname)?.icon || Menu;
                 return <CurrentIcon size={22} strokeWidth={2} />;

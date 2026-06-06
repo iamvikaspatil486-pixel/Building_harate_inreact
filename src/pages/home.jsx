@@ -30,12 +30,30 @@ function CommentSheet({ post, currentUser, onClose }) {
   const backdropRef = useRef();
 
   useEffect(() => {
+// 🚀 HIDE NAV BAR: Add class to body when comment sheet mounts
+    document.body.classList.add("comments-open");
+
     fetchComments();
     setTimeout(() => inputRef.current?.focus(), 400);
-  }, []);
+
+    // 🚀 SHOW NAV BAR CLEANUP: Automatically brings back nav bar if sheet unmounts
+    return () => {
+      document.body.classList.remove("comments-open");
+    };
+ }, []);
 
   const handleBackdrop = (e) => {
-    if (e.target === backdropRef.current) onClose();
+    if (e.target === backdropRef.current) {
+      // 🚀 SHOW NAV BAR: Clear class before calling onClose
+      document.body.classList.remove("comments-open");
+      onClose();
+    }
+  };
+
+  // Wrap your explicit close actions cleanly too
+  const handleCloseSheet = () => {
+    document.body.classList.remove("comments-open");
+    onClose();
   };
 
   const fetchComments = async () => {
