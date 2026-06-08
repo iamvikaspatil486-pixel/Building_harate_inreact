@@ -1,40 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, PlusSquare, MessageCircle, Menu } from "lucide-react";
-
+import { Home, PlusSquare, MessageCircle, Menu, user } from "lucide-react";
+  
 const tabs = [
   { icon: Home,          label: "Home",  path: "/home"   },
   { icon: PlusSquare,    label: "Post",  path: "/add-post" },
   { icon: MessageCircle, label: "Chat",  path: "/chat"   },
+ {icon: userCircle, label:"profile", path: "/profile"},
 ];
 
 export default function Navigation() {
   const [expanded, setExpanded] = useState(false);
-  const [hideForComments, setHideForComments] = useState(false); // 🚀 Track sheet visibility
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 🚀 LISTEN FOR THE COMMENT SHEET TO OPEN OR CLOSE
-  useEffect(() => {
-    // Check current class state immediately on mount
-    setHideForComments(document.body.classList.contains("comments-open"));
-
-    const handleMutation = () => {
-      setHideForComments(document.body.classList.contains("comments-open"));
-    };
-
-    // Watch the body element for changes to its class attribute
-    const observer = new MutationObserver(handleMutation);
-    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-
-    return () => observer.disconnect(); // Clean up observer on unmount
-  }, []);
-
   // Hide completely on login/root screen
   if (location.pathname === "/" || location.pathname === "/login") return null;
-
-  // 🚀 VAPORIZE THE FLOATING BALL IF THE COMMENT SHEET IS ACTIVE
-  if (hideForComments) return null;
 
   const go = (path) => {
     setExpanded(false);
@@ -45,7 +26,7 @@ export default function Navigation() {
     <>
       {/* Dimmed Backdrop overlay for focus when expanded */}
       <div 
-        className="fixed inset-0 z-40 transition-opacity duration-300"
+        className="fixed inset-0 z-40 transition-opacity duration-300 nav-container-wrapper"
         style={{
           backgroundColor: "rgba(0, 0, 0, 0.2)",
           opacity: expanded ? 1 : 0,
@@ -58,7 +39,7 @@ export default function Navigation() {
 
       {/* Main Container sitting bottom-right */}
       <div 
-        className="fixed z-50 flex justify-end"
+        className="fixed z-50 flex justify-end nav-container-wrapper"
         style={{
           bottom: "24px",
           right: "16px",
@@ -84,7 +65,6 @@ export default function Navigation() {
           }}
         >
           {expanded ? (
-            // ── EXPANDED STATE (Full Menu Items) ──
             <div className="flex w-full h-full items-center justify-around animate-fade-in">
               {tabs.map(({ icon: Icon, label, path }) => {
                 const isActive = location.pathname === path;
@@ -108,7 +88,6 @@ export default function Navigation() {
               })}
             </div>
           ) : (
-            // ── COLLAPSED STATE (Single Trigger Button) ──
             <button
               onClick={() => setExpanded(true)}
               className="flex items-center justify-center w-full h-full text-gray-700 active:scale-90 transition-transform duration-150"
@@ -123,7 +102,7 @@ export default function Navigation() {
         </div>
       </div>
 
-      {/* Global CSS for fade micro-animations */}
+      {/* Global CSS Injector: Forces components to disappear instantly via raw CSS overriding */}
       <style>{`
         .animate-fade-in {
           animation: fadeInEffect 0.25s ease-out forwards;
@@ -133,6 +112,13 @@ export default function Navigation() {
         @keyframes fadeInEffect {
           from { opacity: 0; transform: scale(0.96); }
           to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* 🚀 THE MAGIC TRICK: If the body has 'comments-open', vaporize the navigation elements completely */
+        body.comments-open .nav-container-wrapper {
+          display: none !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
         }
       `}</style>
     </>

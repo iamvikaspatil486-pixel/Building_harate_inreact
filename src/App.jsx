@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { supabase } from './lib/supabase'; 
+import { supabase } from './lib/supabase';
+import Index from './components/Index'; 
 import Login from './components/Login';
 import Register from './components/Register';
 import Home from './pages/home';
 import AddPost from './pages/add-post';
 import Chat from './pages/chat';
+import Profile from './pages/profile';
 import Navigation from './components/navigation';
 
 // 🚀 INNER LAYOUT WRAPPER: Handles path checking inside the Router context
@@ -18,18 +20,20 @@ function AppLayout({ session }) {
     location.pathname === '/chat' || 
     location.pathname === '/comments' || 
     location.pathname.startsWith('/comments/'); // Handles paths like /comments/:postId
+   
 
   return (
     <div className="min-h-screen bg-slate-900">
       <Routes>
         {/* Auth Fallbacks */}
-        <Route path="/" element={session ? <Navigate to="/home" /> : <Login />} />
-        <Route path="/login" element={session ? <Navigate to="/home" /> : <Login />} />
-          <Route path="/register" element={!session ? <Register /> : <Navigate to="/home" />} />
+       <Route path="/" element={session? <Navigate to = "/home"/>:<Index/>}/>
+        <Route path="/login" element={session ? <Navigate to="/home" /> : <login />} />
+          <Route path="/register" element={!session ? <Register /> : <Navigate to="/login" />} />
         {/* Protected Application Routes */}
         <Route path="/home" element={session ? <Home /> : <Navigate to="/login" />} />
         <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" />} />
         <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/login" />} />
+           <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" />} />     
         {/* Make sure your comments route is defined here */}
       </Routes>
 
