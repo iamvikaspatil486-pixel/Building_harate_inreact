@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase'; 
 import Login from './components/Login';
+import Register from './components/Register';
 import Home from './pages/home';
 import AddPost from './pages/add-post';
 import Chat from './pages/chat';
@@ -24,7 +25,7 @@ function AppLayout({ session }) {
         {/* Auth Fallbacks */}
         <Route path="/" element={session ? <Navigate to="/home" /> : <Login />} />
         <Route path="/login" element={session ? <Navigate to="/home" /> : <Login />} />
-        
+          <Route path="/register" element={!session ? <Register /> : <Navigate to="/home" />} />
         {/* Protected Application Routes */}
         <Route path="/home" element={session ? <Home /> : <Navigate to="/login" />} />
         <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" />} />
