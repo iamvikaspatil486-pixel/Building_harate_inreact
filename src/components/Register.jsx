@@ -168,7 +168,7 @@ export default function Register() {
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Roll Number *</label>
               <input
                 type="text"
-                placeholder="e.g. 24MBBS08"
+                placeholder="e.g. 208"
                 value={rollNo}
                 onChange={e => { setRollNo(e.target.value); setError('') }}
                 onKeyDown={e => handleKeyDown(e, handleNextStep)}
