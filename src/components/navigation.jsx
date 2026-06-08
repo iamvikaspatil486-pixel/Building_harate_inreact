@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, PlusSquare, MessageCircle, Menu, user } from "lucide-react";
+import { Home, PlusSquare, MessageCircle, Menu, UserCircle } from "lucide-react";
   
 const tabs = [
   { icon: Home,          label: "Home",  path: "/home"   },
   { icon: PlusSquare,    label: "Post",  path: "/add-post" },
   { icon: MessageCircle, label: "Chat",  path: "/chat"   },
- {icon: userCircle, label:"profile", path: "/profile"},
+ {icon: UserCircle, label:"profile", path: "/profile"},
 ];
 
 export default function Navigation() {
