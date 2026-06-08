@@ -68,6 +68,7 @@ export default function Profile() {
   }
 
   // Submit text straight into the feedback database table mapping
+  // Submit text straight into the feedback database table mapping
   async function handleSubmitFeedback() {
     if (!feedbackText.trim()) {
       setMessage({ text: 'Please type some feedback first.', type: 'error' });
@@ -75,6 +76,7 @@ export default function Profile() {
     }
 
     setFeedbackLoading(true);
+    // Clear out any old messages before starting
     setMessage({ text: '', type: '' });
 
     try {
@@ -89,9 +91,15 @@ export default function Profile() {
 
       if (error) throw error;
 
+      // 🚀 SUCCESS STAGE: Wipe input box and set the persistent success banner
       setFeedbackText('');
-      setMessage({ text: 'Thank you! Your feedback has been sent to Vikas.', type: 'success' });
+      setMessage({ 
+        text: 'Thank you! Your feedback has been sent to admin.', 
+        type: 'success' 
+      });
+
     } catch (err) {
+      console.error('Feedback error:', err);
       setMessage({ text: 'Could not send feedback. Try again.', type: 'error' });
     } finally {
       setFeedbackLoading(false);
