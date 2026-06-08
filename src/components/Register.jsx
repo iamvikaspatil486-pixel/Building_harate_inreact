@@ -244,7 +244,7 @@ export default function Register() {
             </div>
           </div>
         )}
-await.supabase.signout();
+
 
         {/* ── STEP 3: Success Pending Notice Area ── */}
         {step === 3 && (

@@ -27,13 +27,13 @@ function AppLayout({ session }) {
       <Routes>
         {/* Auth Fallbacks */}
        <Route path="/" element={session? <Navigate to = "/home"/>:<Index/>}/>
-        <Route path="/login" element={session ? <Navigate to="/home" /> : <login />} />
-          <Route path="/register" element={!session ? <Register /> : <Navigate to="/login" />} />
+        <Route path="/login" element={session ? <Navigate to="/home" /> : <Login />} />
+          <Route path="/register" element={!session ? <Register /> : <Navigate to="/Login" />} />
         {/* Protected Application Routes */}
-        <Route path="/home" element={session ? <Home /> : <Navigate to="/login" />} />
-        <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" />} />
-        <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/login" />} />
-           <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" />} />     
+        <Route path="/home" element={session ? <Home /> : <Navigate to="/Login" />} />
+        <Route path="/chat" element={session ? <Chat /> : <Navigate to="/Login" />} />
+        <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/Login" />} />
+           <Route path="/profile" element={session ? <Profile /> : <Navigate to="/Login" />} />     
         {/* Make sure your comments route is defined here */}
       </Routes>
 
