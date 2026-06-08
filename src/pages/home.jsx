@@ -545,51 +545,104 @@ export default function Home() {
 }
 
 // ─── FULL SCREEN IMAGE VIEWER MODAL ──────────────────────────────────────────
+// ─── FULL SCREEN INTERACTIVE IMAGE VIEWER MODAL (PINCH TO ZOOM) ──────────────
 function ImageOverlayModal({ imageUrl, onClose }) {
   if (!imageUrl) return null;
 
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const touchStartRef = useRef({ distance: 0, x: 0, y: 0 });
+
+  // Reset zoom states when closing or changing images
+  const handleClose = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+    onClose();
+  };
+
+  // 🚀 HANDLE TOUCH GESTURE MATHEMATICS
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      // Pinch gesture tracking: calculate distance between two fingers
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      touchStartRef.current.distance = dist;
+    } else if (e.touches.length === 1 && scale > 1) {
+      // Pan gesture tracking: track movement when zoomed in
+      const t = e.touches[0];
+      touchStartRef.current.x = t.clientX - position.x;
+      touchStartRef.current.y = t.clientY - position.y;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 2 && touchStartRef.current.distance > 0) {
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      
+      // Calculate new scale factor relative to starting touch position
+      const factor = currentDist / touchStartRef.current.distance;
+      const newScale = Math.min(Math.max(1, scale * factor), 4); // Bounds zoom between 1x and 4x
+      setScale(newScale);
+      touchStartRef.current.distance = currentDist;
+    } else if (e.touches.length === 1 && scale > 1) {
+      // Move image inside viewport if zoomed in
+      const t = e.touches[0];
+      setPosition({
+        x: t.clientX - touchStartRef.current.x,
+        y: t.clientY - touchStartRef.current.y
+      });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartRef.current.distance = 0;
+    // Snap back to normal size if user pinches smaller than original scale
+    if (scale <= 1) {
+      setPosition({ x: 0, y: 0 });
+    }
+  };
+
   return (
     <div 
-      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center select-none touch-none animate-fade-in"
+      onClick={handleClose}
     >
-      {/* Top Status Bar Control */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent z-10">
-        <span className="text-[11px] font-black text-white/60 tracking-widest uppercase">Media Viewer</span>
+      {/* Top Controller */}
+      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent z-10 pointer-events-none">
+        <span className="text-[10px] font-black text-white/50 tracking-widest uppercase">Pinch to Zoom</span>
         <button 
-          onClick={onClose}
-          className="h-8 px-4 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs transition border border-white/10 backdrop-blur-md"
+          onClick={handleClose}
+          className="pointer-events-auto h-8 px-4 rounded-full bg-white/10 text-white font-bold text-xs border border-white/10 backdrop-blur-md active:scale-95 transition"
         >
           Close
         </button>
       </div>
 
-      {/* Main Image View Track */}
-      <div className="w-full max-h-screen p-2 flex items-center justify-center select-none">
+      {/* Main Interactive Track */}
+      <div 
+        className="w-full h-full flex items-center justify-center p-2 overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <img 
           src={imageUrl} 
-          alt="Expanded view" 
-          className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl animate-scale-up"
-          onClick={(e) => e.stopPropagation()} // Prevents tapping the image itself from closing it
+          alt="Zoomable panel view" 
+          className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl transition-transform duration-75 will-change-transform"
+          style={{
+            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+          }}
+          onClick={(e) => e.stopPropagation()} // Prevents clicks on image from closing it
         />
       </div>
 
-      {/* Core Embedded CSS for Cinematic Transitions */}
       <style>{`
-        @keyframes modalFade {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes imagePop {
-          from { opacity: 0; transform: scale(0.93); }
-          to   { opacity: 1; transform: scale(1); }
-        }
-        .animate-fade-in {
-          animation: modalFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .animate-scale-up {
-          animation: imagePop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
+        .animate-fade-in { animation: oFade 0.2s ease-out forwards; }
+        @keyframes oFade { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );
