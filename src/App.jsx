@@ -10,7 +10,6 @@ import Chat from './pages/chat';
 import Profile from './pages/profile';
 import Navigation from './components/navigation';
 
-// 🚀 INNER LAYOUT WRAPPER: Handles path checking inside the Router context
 // ─── INNER LAYOUT WRAPPER ───────────────────────────────────────────────────
 function AppLayout({ session }) {
   const location = useLocation(); // Watches route switches to toggle navigation
@@ -20,24 +19,26 @@ function AppLayout({ session }) {
     location.pathname === '/chat' || 
     location.pathname === '/comments' || 
     location.pathname.startsWith('/comments/'); // Handles paths like /comments/:postId
-   
 
   return (
     <div className="min-h-screen bg-slate-900">
       <Routes>
         {/* Auth Fallbacks */}
-       <Route path="/" element={session? <Navigate to = "/home"/>:<Index/>}/>
-        <Route path="/login" element={session ? <Navigate to="/home" /> : <Login />} />
-          <Route path="/register" element={!session ? <Register /> : <Navigate to="/Login" />} />
+        <Route path="/" element={session ? <Navigate to="/home" replace /> : <Index />} />
+        <Route path="/login" element={session ? <Navigate to="/home" replace /> : <Login />} />
+        <Route path="/register" element={!session ? <Register /> : <Navigate to="/login" replace />} />
+        
         {/* Protected Application Routes */}
-        <Route path="/home" element={session ? <Home /> : <Navigate to="/Index" />} />
-        <Route path="/chat" element={session ? <Chat /> : <Navigate to="/Login" />} />
-        <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/Login" />} />
-           <Route path="/profile" element={session ? <Profile /> : <Navigate to="/Login" />} />     
-        {/* Make sure your comments route is defined here */}
+        <Route path="/home" element={session ? <Home /> : <Navigate to="/" replace />} />
+        <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" replace />} />
+        <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/login" replace />} />
+        <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" replace />} />     
+
+        {/* 🚀 CRITICAL 404 PROTECTION: Catch-all wildcard redirects back to root if path is broken or capitalized */}
+        <Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
       </Routes>
 
-      {/* 🚀 FIXED LINE: Only render navigation if user has a session AND we shouldn't hide it */}
+      {/* Only render navigation if user has a session AND we shouldn't hide it */}
       {session && !hideNavBar && <Navigation />}
     </div>
   );
@@ -65,7 +66,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400 font-medium">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400 font-medium animate-pulse">
         Loading Harate...
       </div>
     );
