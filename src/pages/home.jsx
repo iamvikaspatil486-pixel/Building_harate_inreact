@@ -351,12 +351,14 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
-  const currentUser = JSON.parse(localStorage.getItem("anon_user") || "null");
-
+// replace line 354 with this
+const [currentUser] = useState(() => 
+  JSON.parse(localStorage.getItem("anon_user") || "null")
+);
   useEffect(() => { 
     fetchPosts(); 
     evaluateNotificationOnboarding();
-  }, [currentUser]);
+  }, []);
 
   async function evaluateNotificationOnboarding() {
     try {
