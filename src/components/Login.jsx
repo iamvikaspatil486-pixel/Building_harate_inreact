@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useNavigate } from 'react-router-dom'
+
 
 export default function Login() {
+ const navigate = useNavigate()
   const [step, setStep] = useState(1)       // 1=name/roll, 2=batch, 3=password
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -157,7 +160,7 @@ export default function Login() {
       localStorage.setItem('session_token', sessionToken)
 
       // Redirect to home
-      window.location.href = '/home'
+      navigate('/home')
 
     } catch (err) {
       setError('Something went wrong. Try again.')
@@ -251,7 +254,7 @@ export default function Login() {
 
             <input
               type="text"
-              placeholder="Batch code (e.g. SSIMS2024)"
+              placeholder="Batch code (e.g. 73hsuwi)"
               value={batchCode}
               onChange={e => { setBatchCode(e.target.value.toUpperCase()); setError('') }}
               onKeyDown={e => handleKeyDown(e, handleVerifyBatch)}
@@ -315,8 +318,9 @@ export default function Login() {
       {/* Register Link */}
       <p className="text-slate-500 text-sm mt-6">
         New student?{' '}
-        <a href="/register" className="text-cyan-400 font-bold hover:text-cyan-300">
-          Register here
+<button onClick={() => navigate('/register')} className="text-cyan-400 font-bold">
+  Register here
+</button>
         </a>
       </p>
 
