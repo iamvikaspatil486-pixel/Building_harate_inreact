@@ -321,7 +321,7 @@ export default function Login() {
 <button onClick={() => navigate('/register')} className="text-cyan-400 font-bold">
   Register here
 </button>
-        </a>
+        
       </p>
 
     </div>
