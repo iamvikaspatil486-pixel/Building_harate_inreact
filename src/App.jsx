@@ -23,11 +23,22 @@ function AppLayout({ session }) {
 
   // 🚀 SINGLE-DEVICE SESSION ENFORCEMENT GUARD
   useEffect(() => {
+    // Exit early if the user is not actively logged in
     if (!session?.user?.id) return;
 
     const checkDeviceSessionValidity = async () => {
       try {
-        // 1. Query your existing 'session_token' column for the logged-in student
+        // 🚀 GRACE PERIOD GUARD: Fetch the token stashed on this specific device
+        const currentDeviceToken = localStorage.getItem("harate_active_session_token");
+
+        // If the login script hasn't written the token to local storage yet, 
+        // skip this loop cycle so we don't accidentally log out a new user!
+        if (!currentDeviceToken) {
+          console.log("Local session token is stabilizing, pausing check cycle...");
+          return;
+        }
+
+        // 1. Query the 'session_token' column for the logged-in user
         const { data: studentRecord, error } = await supabase
           .from('students')
           .select('session_token')
@@ -36,65 +47,41 @@ function AppLayout({ session }) {
 
         if (error || !studentRecord) return;
 
-        // 2. Get the token stashed on this specific device during its login step
-        const currentDeviceToken = localStorage.getItem("harate_active_session_token");
-
-        // 3. 🚧 THE KICK OUT GATE: If the cloud token changed, a newer device took over!
+        // 2. 🚧 THE KICK OUT GATE: If cloud token changed, a newer device logged in!
         if (studentRecord.session_token && studentRecord.session_token !== currentDeviceToken) {
+          console.warn("login confirmed. if you are log in other device then account in that device automatically logged out");
           
-          // Set an on-screen warning error string message before wiping the cache
-          setSessionError("You have been logged out because your account was logged into from another device.");
+          // Clear out the live session state instantly to freeze protected routes
+          setSession(null);
           
-          // Delay the hard clear slightly so the user can read the error message banner
-          setTimeout(async () => {
-            // Wipe out local device states completely
-            localStorage.clear();
-            sessionStorage.clear();
-            
-            // Sign out of the native Supabase Auth layer instance
-            await supabase.auth.signOut();
-            
-            // Bounce the browser completely back to your landing index page
-            window.location.href = "/";
-          }, 4000);
+          // Wipe out local device configuration states completely
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Sign out of the native Supabase Auth layer instance
+          await supabase.auth.signOut();
+          
+          // Show our explanatory eviction warning modal overlay
+          setShowKickModal(true);
         }
       } catch (err) {
-        console.error("Session device tracker error:", err);
+        console.error("Session monitor connection error:", err);
       }
     };
 
-    // Check immediately whenever they move to a new page route
-    checkDeviceSessionValidity();
+    // Give the login script a 1.5-second head start to settle storage before running the path switch check
+    const graceTimer = setTimeout(() => {
+      checkDeviceSessionValidity();
+    }, 1500);
 
-    // Poll the database quietly every 15 seconds to catch new logins in real-time
+    // Poll the database quietly every 15 seconds to keep background checks tight
     const sessionCheckInterval = setInterval(checkDeviceSessionValidity, 15000);
 
-    return () => clearInterval(sessionCheckInterval);
-  }, [session, location.pathname]);
-
-  return (
-    <div className="min-h-screen bg-slate-900 relative">
-      
-      {/* 🚨 DYNAMIC AUTOMATIC LOGOUT WARNING BANNER OVERLAY */}
-      {sessionError && (
-        <div className="fixed inset-0 z-[999] bg-black/90 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in select-none">
-          <div className="w-full max-w-sm bg-slate-950 border border-red-500/30 rounded-2xl p-6 text-center shadow-2xl space-y-4 animate-scale-up">
-            <div className="w-12 h-12 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto text-xl font-bold animate-pulse">
-              ⚠️
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-sm font-black text-white uppercase tracking-wider">Session Terminated</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {sessionError}
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-center gap-2">
-              <div className="w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Routing to entrance...</span>
-            </div>
-          </div>
-        </div>
-      )}
+    return () => {
+      clearTimeout(graceTimer);
+      clearInterval(sessionCheckInterval);
+    };
+  }, [session, location.pathname, setSession]);
 
       <Routes>
         {/* ─── AUTHENTICATION ENTRANCE PATHS ─── */}
@@ -115,8 +102,8 @@ function AppLayout({ session }) {
 
       {/* Only render bottom navigation if user has a session AND we shouldn't hide it */}
       {session && !hideNavBar && <Navigation />}
-    </div>
-  );
+    
+  
 }
 
 // ─── MAIN APP ENTRY POINT ────────────────────────────────────────────────────
