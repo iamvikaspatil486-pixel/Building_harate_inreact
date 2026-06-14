@@ -10,6 +10,7 @@ import Chat from './pages/chat';
 import Profile from './pages/profile';
 import Navigation from './components/navigation';
 import { ShieldAlert } from 'lucide-react';
+import OneSignal from 'react-onesignal'; // 🚀 Added OneSignal SDK Integration
 
 // ─── INNER LAYOUT WRAPPER ───────────────────────────────────────────────────
 function AppLayout({ session, setSession }) {
@@ -104,7 +105,7 @@ function AppLayout({ session, setSession }) {
         <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" replace />} />     
 
         {/* Catch-all global fallback */}
-        <Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
+<Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
       </Routes>
 
       {/* Only render bottom navigation if user has a session AND we shouldn't hide it */}
@@ -153,6 +154,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 🚀 INITIALIZE ONESIGNAL RUNTIME ENGINE
+    OneSignal.init({
+      appId: "YOUR_ONESIGNAL_APP_ID_HERE", // <-- ⚠️ PASTE YOUR ACTUAL DASHBOARD APP ID HERE
+      allowLocalhostAsSecureOrigin: true,   // Permits clean local testing within Termux environments
+    }).then(() => {
+      console.log("OneSignal background push pipeline successfully deployed.");
+    }).catch((err) => {
+      console.error("OneSignal initialization timeout:", err);
+    });
+
     // Check active session immediately when app opens
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -179,7 +190,6 @@ export default function App() {
 
   return (
     <Router>
-      {/* 🚀 FIXED: Passed setSession down here as a prop so AppLayout can use it! */}
       <AppLayout session={session} setSession={setSession} />
     </Router>
   );

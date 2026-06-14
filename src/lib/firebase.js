@@ -12,6 +12,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// 🚀 Just export the clean, initialized messaging instance
-export const messaging = getMessaging(app);
+let messaging = null;
+try {
+  messaging = getMessaging(app);
+} catch (err) {
+  console.warn("Firebase messaging not available:", err);
+}
 
+export { messaging };
