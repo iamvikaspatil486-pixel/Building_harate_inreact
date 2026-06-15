@@ -4,21 +4,18 @@ import { useNavigate } from 'react-router-dom'
 
 export default function Register() {
   const navigate = useNavigate()
-  const [step, setStep] = useState(1)       // 1=Profile info, 2=Credentials, 3=Pending/Done
+  const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // ─── STEP 1 STATES (Student Details) ───────────────────────────
   const [fullName, setFullName] = useState('')
   const [nickname, setNickname] = useState('')
   const [rollNo, setRollNo] = useState('')
 
-  // ─── STEP 2 STATES (Account Access) ────────────────────────────
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // Move from Step 1 to Step 2 with verification rules
   function handleNextStep() {
     if (!fullName.trim() || !rollNo.trim()) {
       setError('Please fill in both Full Name and Roll Number')
@@ -28,10 +25,9 @@ export default function Register() {
     setStep(2)
   }
 
-  // ─── STEP 2: Handle Final Core Submission ──────────────────────
   async function handleRegisterSubmit() {
-    if (!email.trim() || !password || !confirmPassword) {
-      setError('Please complete all authentication fields')
+    if (!password || !confirmPassword) {
+      setError('Please enter and confirm your password')
       return
     }
     if (password !== confirmPassword) {
@@ -47,39 +43,45 @@ export default function Register() {
     setError('')
 
     try {
-      // 1. Create the Auth record inside the Supabase Auth Engine
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-      })
+      let userId = null
 
-      if (authError) {
-        setError(authError.message)
+      if (email.trim()) {
+        // Has email — create Supabase Auth account
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password,
+        })
+        if (authError) {
+          setError(authError.message)
+          return
+        }
+        userId = authData?.user?.id
+      } else {
+        // No email — generate random UUID
+        userId = crypto.randomUUID()
+      }
+
+      // Insert student row
+      const { error: profileError } = await supabase
+        .from('students')
+        .insert([{
+          id: userId,
+          full_name: fullName.trim(),
+          nickname: nickname.trim() || null,
+          roll_no: rollNo.trim().toUpperCase(),
+          email: email.trim() || null,
+          password: password,
+          is_approved: false,
+          status: 'pending',
+        }])
+
+      if (profileError) {
+        setError('Profile setup failed: ' + profileError.message)
         return
       }
 
-      // 2. Insert metadata profile row into your students table mapping
-      if (authData?.user) {
-        const { error: profileError } = await supabase
-          .from('students')
-          .insert([
-            {
-              id: authData.user.id,
-              full_name: fullName.trim(),
-              nickname: nickname.trim() || null,
-              roll_no: rollNo.trim().toUpperCase(),
-              is_approved: false // Hard-locked until you toggle it via /admin
-            }
-          ])
+      setStep(3)
 
-        if (profileError) {
-          setError('Profile setup failed: ' + profileError.message)
-          return
-        }
-
-        // Advance to success page tracking step
-        setStep(3)
-      }
     } catch (err) {
       setError('Something went wrong during account setup.')
     } finally {
@@ -87,15 +89,14 @@ export default function Register() {
     }
   }
 
-  // Handle key triggers on computer or phone input boards
   function handleKeyDown(e, action) {
     if (e.key === 'Enter') action()
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
-      
-      {/* Platform Branding Logo */}
+
+      {/* Branding */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-black text-cyan-400 tracking-tight">
           STUDENTS HARATE
@@ -105,10 +106,10 @@ export default function Register() {
         </p>
       </div>
 
-      {/* Main Structural Input Card */}
+      {/* Card */}
       <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-        
-        {/* Step Indicator Matrix (Only shows for input steps 1 & 2) */}
+
+        {/* Step indicator */}
         {step < 3 && (
           <div className="flex items-center gap-2 mb-6">
             {[1, 2].map(s => (
@@ -127,14 +128,14 @@ export default function Register() {
           </div>
         )}
 
-        {/* Global Error Banner */}
+        {/* Error */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-xl mb-4 animate-fade-in">
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-xl mb-4">
             {error}
           </div>
         )}
 
-        {/* ── STEP 1: Student Profile Verification ── */}
+        {/* ── STEP 1 ── */}
         {step === 1 && (
           <div className="space-y-4">
             <div>
@@ -146,7 +147,7 @@ export default function Register() {
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Full Name *</label>
               <input
                 type="text"
-                placeholder="Enter your full  name"
+                placeholder="Enter your full name"
                 value={fullName}
                 onChange={e => { setFullName(e.target.value); setError('') }}
                 className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors"
@@ -154,7 +155,9 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Nickname <span className="text-slate-600 font-normal">(Optional)</span></label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                Nickname <span className="text-slate-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="text"
                 placeholder="What your batchmates call you"
@@ -184,7 +187,7 @@ export default function Register() {
           </div>
         )}
 
-        {/* ── STEP 2: Access Security ── */}
+        {/* ── STEP 2 ── */}
         {step === 2 && (
           <div className="space-y-4">
             <div>
@@ -196,14 +199,19 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Email Address</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                Email Address <span className="text-slate-600 font-normal">(Optional)</span>
+              </label>
               <input
                 type="email"
-                placeholder="student@college.com"
+                placeholder="Used only for password recovery"
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError('') }}
                 className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors"
               />
+              <p className="text-[11px] text-slate-600 mt-1.5 ml-1 leading-relaxed">
+                💡for reset password, email is required cause we know that it's really u trying to reset password.
+              </p>
             </div>
 
             <div>
@@ -218,7 +226,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Verify Set Password</label>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Verify Password</label>
               <input
                 type="password"
                 placeholder="••••••••"
@@ -245,20 +253,19 @@ export default function Register() {
           </div>
         )}
 
-
-        {/* ── STEP 3: Success Pending Notice Area ── */}
+        {/* ── STEP 3: Pending ── */}
         {step === 3 && (
           <div className="space-y-5 text-center py-4">
             <div className="w-14 h-14 bg-cyan-950 border border-cyan-800/50 rounded-full flex items-center justify-center text-cyan-400 font-black text-2xl mx-auto mb-2 animate-pulse">
               ⏰
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Request Submitted!</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">Request Sent to Admin!</h2>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed px-1">
-                Your account for <b>{nickname || fullName}</b> has been locked into our database registry.
+                Your account for <b>{nickname || fullName}</b> has been submitted successfully.
               </p>
-              <p className="text-cyan-400/80 text-[11px] font-medium mt-3 bg-cyan-500/5 border border-cyan-500/10 p-2.5 rounded-xl">
-                Access is restricted until Vikas reviews your roll number and activates your account.
+              <p className="text-cyan-400/80 text-[11px] font-medium mt-3 bg-cyan-500/5 border border-cyan-500/10 p-2.5 rounded-xl leading-relaxed">
+                Request sent. You'll be able to login once approved.
               </p>
             </div>
 
@@ -272,13 +279,12 @@ export default function Register() {
 
       </div>
 
-      {/* Login Alternative Routing Link footer */}
       {step < 3 && (
         <p className="text-slate-500 text-sm mt-6">
           Already have an account?{' '}
-          <a href="/login" className="text-cyan-400 font-bold hover:text-cyan-300">
+          <button onClick={() => navigate('/login')} className="text-cyan-400 font-bold hover:text-cyan-300">
             Login here
-          </a>
+          </button>
         </p>
       )}
 

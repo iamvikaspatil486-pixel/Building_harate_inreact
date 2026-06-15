@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X } from "lucide-react";
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -20,7 +20,6 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
 
     setLoading(true);
 
-    // Scan recent entries to check handles
     const since = new Date(Date.now() - HOURS * 3600 * 1000).toISOString();
     const { data } = await supabase
       .from("chat_messages")
@@ -48,13 +47,9 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
 
   return (
     <div className="fixed inset-0 bg-[#090d16]/80 backdrop-blur-sm flex flex-col items-center justify-center px-6 z-50">
-      
-      {/* Pop-up Card Container */}
       <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-7 shadow-2xl relative">
-        
-        {/* Clean Cancel Box on Top Left */}
         {currentUsername && (
-          <button 
+          <button
             onClick={onCancel}
             className="absolute top-6 left-6 text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-950 border border-slate-800 transition active:scale-90 flex items-center justify-center"
           >
@@ -114,7 +109,7 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
   );
 }
 
-// ─── MAIN CHAT ROOM COMPONENT ──────────────────────────────────────────────────
+// ─── MAIN CHAT ROOM COMPONENT ─────────────────────────────────────────────────
 export default function Chat() {
   const navigate = useNavigate();
   const [username, setUsername] = useState(null);
@@ -122,16 +117,39 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  
+
+  // 3-dot menu state
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  // Inline edit state
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
+
   const bottomRef = useRef();
   const inputRef = useRef();
+  const menuRef = useRef();
 
   const batch = JSON.parse(localStorage.getItem("selectedBatch") || "null");
   const currentUser = JSON.parse(localStorage.getItem("anon_user") || "null");
   const batchId = batch?.batchId;
   const batchName = batch?.batchName || "Batch Chat";
 
-  // Check 10-hour lease duration logic
+  // Close menu on outside tap
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, []);
+
+  // Restore session
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (raw) {
@@ -144,7 +162,7 @@ export default function Chat() {
     }
   }, []);
 
-  // Sync messaging updates via channel pipelines
+  // Realtime subscription
   useEffect(() => {
     if (!username || !batchId) return;
     fetchMessages();
@@ -158,6 +176,22 @@ export default function Chat() {
       }, (p) => {
         setMessages((prev) => [...prev, p.new]);
       })
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public",
+        table: "chat_messages",
+        filter: `batch_id=eq.${batchId}`,
+      }, (p) => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === p.new.id ? p.new : m))
+        );
+      })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public",
+        table: "chat_messages",
+        filter: `batch_id=eq.${batchId}`,
+      }, (p) => {
+        setMessages((prev) => prev.filter((m) => m.id !== p.old.id));
+      })
       .subscribe();
 
     return () => supabase.removeChannel(ch);
@@ -170,16 +204,19 @@ export default function Chat() {
   const fetchMessages = async () => {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id, username, message")
+      .select("id, username, message, edited")
       .eq("batch_id", batchId)
       .order("created_at", { ascending: true })
       .limit(100);
     setMessages(data || []);
   };
 
+  // ── SEND ──
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
+    // Blur input so keyboard closes on mobile
+    inputRef.current?.blur();
     await supabase.from("chat_messages").insert({
       message: text.trim(),
       username,
@@ -189,43 +226,67 @@ export default function Chat() {
     });
     setText("");
     setSending(false);
-    inputRef.current?.focus();
+  };
+
+  // ── EDIT ──
+  const startEdit = (msg) => {
+    setOpenMenuId(null);
+    setEditingId(msg.id);
+    setEditText(msg.message);
+  };
+
+  const saveEdit = async (id) => {
+    if (!editText.trim()) return;
+    await supabase
+      .from("chat_messages")
+      .update({ message: editText.trim(), edited: true })
+      .eq("id", id);
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  // ── DELETE ──
+  const deleteMsg = async (id) => {
+    setOpenMenuId(null);
+    const confirmed = window.confirm("Delete this message? This can't be undone.");
+    if (!confirmed) return;
+    await supabase.from("chat_messages").delete().eq("id", id);
   };
 
   return (
     <div className="fixed inset-0 bg-[#090d16] text-slate-100 flex flex-col overflow-hidden overscroll-none">
 
-      {/* RENDER POPUP ON TOP IF TRUE */}
       {(!username || isEditingUsername) && (
-        <UsernamePicker 
-          onDone={(name) => { setUsername(name); setIsEditingUsername(false); }} 
-          currentUsername={username} 
-          onCancel={() => setIsEditingUsername(false)} 
+        <UsernamePicker
+          onDone={(name) => { setUsername(name); setIsEditingUsername(false); }}
+          currentUsername={username}
+          onCancel={() => setIsEditingUsername(false)}
         />
       )}
 
-      {/* HEADER BAR */}
+      {/* HEADER */}
       <header className="flex-shrink-0 h-16 border-b border-slate-900/60 px-4 flex items-center gap-3 bg-[#090d16]/90 backdrop-blur-md z-10">
-        
-        <button 
-          onClick={() => navigate(-1)} 
+        <button
+          onClick={() => navigate(-1)}
           className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md flex items-center justify-center flex-shrink-0"
         >
           <ArrowLeft size={18} />
         </button>
 
-        {/* Batch Name display container filled with fluid, shifting gradient color flows */}
-<div 
-  className="flex-1 min-w-0 border border-blue-500/30 rounded-2xl px-4 h-11 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] animate-gradient-xy bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600"
-  style={{ backgroundSize: "200% 200%" }}
->
-  <p className="font-extrabold text-white text-sm truncate uppercase tracking-wider drop-shadow-sm">
-    {batchName}
-  </p>
-</div>
+        <div
+          className="flex-1 min-w-0 border border-blue-500/30 rounded-2xl px-4 h-11 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] animate-gradient-xy bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600"
+          style={{ backgroundSize: "200% 200%" }}
+        >
+          <p className="font-extrabold text-white text-sm truncate uppercase tracking-wider drop-shadow-sm">
+            {batchName}
+          </p>
+        </div>
 
-
-        {/* HEADER RIGHT: Username Display Box with Green Status Dot */}
         {username && (
           <button
             onClick={() => setIsEditingUsername(true)}
@@ -235,10 +296,9 @@ export default function Chat() {
             <span className="text-slate-200 font-bold text-xs max-w-[80px] truncate">@{username}</span>
           </button>
         )}
-
       </header>
 
-      {/* CHAT CONTENT */}
+      {/* MESSAGES */}
       <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-3xl w-full mx-auto overscroll-contain">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -249,22 +309,90 @@ export default function Chat() {
         ) : (
           messages.map((msg) => {
             const isMe = msg.username === username;
+            const isEditing = editingId === msg.id;
+            const menuOpen = openMenuId === msg.id;
+
             return (
               <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                <div className="flex flex-col max-w-[80%] space-y-1">
-                  
-                  {/* ALIAS TRACK HANDLE: Placed top-right relative to the bubble */}
-                  <p className={`text-[10px] font-bold text-sky-400/90 px-1 ${isMe ? "text-right" : "text-left"}`}>
-                    @{msg.username}
-                  </p>
+                <div className={`flex items-end gap-1.5 max-w-[85%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
 
-                  <div
-                    className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm break-words max-w-full ${
-                      isMe ? "text-white font-medium" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"
-                    }`}
-                    style={isMe ? { background: "linear-gradient(135deg, #2563eb, #0284c7)" } : {}}
-                  >
-                    {msg.message}
+                  {/* 3-DOT MENU — only on own messages, pinned to top */}
+                  {isMe && !isEditing && (
+                    <div className="relative flex-shrink-0 self-start mt-0" ref={menuOpen ? menuRef : null}>
+                      <button
+                        onClick={() => setOpenMenuId(menuOpen ? null : msg.id)}
+                        className="p-1.5 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition active:scale-90"
+                      >
+                        <MoreVertical size={15} />
+                      </button>
+
+                      {menuOpen && (
+                        <div
+                          ref={menuRef}
+                          className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden z-30 min-w-[120px]"
+                        >
+                          <button
+                            onClick={() => startEdit(msg)}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 transition"
+                          >
+                            <Pencil size={13} className="text-blue-400" />
+                            Edit
+                          </button>
+                          <div className="h-px bg-slate-700" />
+                          <button
+                            onClick={() => deleteMsg(msg.id)}
+                            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-slate-700 transition"
+                          >
+                            <Trash2 size={13} />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* BUBBLE */}
+                  <div className="flex flex-col space-y-1">
+                    {!isMe && (
+                      <p className="text-[10px] font-bold text-sky-400/90 px-1 text-left">
+                        @{msg.username}
+                      </p>
+                    )}
+
+                    {isEditing ? (
+                      /* EDIT MODE */
+                      <div className="bg-[#1e293b] border border-blue-500/50 rounded-3xl px-3 py-2.5 flex items-center gap-2 min-w-[180px]">
+                        <input
+                          autoFocus
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) saveEdit(msg.id);
+                            if (e.key === "Escape") cancelEdit();
+                          }}
+                          className="flex-1 bg-transparent text-sm text-slate-100 outline-none"
+                        />
+                        <button onClick={() => saveEdit(msg.id)} className="text-emerald-400 hover:text-emerald-300 active:scale-90 transition p-0.5">
+                          <Check size={15} />
+                        </button>
+                        <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-300 active:scale-90 transition p-0.5">
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ) : (
+                      /* NORMAL BUBBLE */
+                      <div
+                        className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm break-words max-w-full ${
+                          isMe ? "text-white font-medium" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"
+                        }`}
+                        style={isMe ? { background: "linear-gradient(135deg, #2563eb, #0284c7)" } : {}}
+                      >
+                        {msg.message}
+                        {msg.edited && (
+                          <span className="ml-1.5 text-[10px] opacity-60 font-normal">edited</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -274,7 +402,7 @@ export default function Chat() {
         <div ref={bottomRef} />
       </main>
 
-      {/* FOOTER BAR */}
+      {/* FOOTER */}
       <div
         className="flex-shrink-0 border-t border-slate-900/60 px-3 py-3 flex items-center gap-2 bg-[#090d16] z-10"
         style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}

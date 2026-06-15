@@ -108,25 +108,35 @@ export default function Login() {
   }
 
   // ── STEP 3: Login ───────────────────────────────────────
-  async function handleLogin() {
-    if (!password.trim()) {
-      setError('Enter your password')
-      return
-    }
+async function handleLogin() {
+  if (!password.trim()) {
+    setError('Enter your password')
+    return
+  }
 
-    setLoading(true)
-    setError('')
+  setLoading(true)
+  setError('')
 
-    try {
+  try {
+    if (student.email) {
+      // Has email — use Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: student.email,
         password: password
       })
-
       if (error) {
         setError('Wrong password. Try again.')
         return
       }
+    } else {
+      // No email — check password directly from students table
+      if (student.password !== password) {
+        setError('Wrong password. Try again.')
+        return
+      }
+    }
+
+    // rest of login — session token, localStorage, navigate stays same
 
       // Generate session token
       const sessionToken = typeof crypto.randomUUID === 'function' 
