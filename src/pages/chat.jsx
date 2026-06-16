@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply } from "lucide-react";
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
 const EXAMPLES = ["truth_teller", "Batman", "princess", "night_viber"];
+const SWIPE_THRESHOLD = 60; // px to trigger reply
 
-// ─── USERNAME POPUP COMPONENT ────────────────────────────────────────────────
+//  USERNAME POPUP 
 function UsernamePicker({ onDone, currentUsername, onCancel }) {
   const [name, setName] = useState(currentUsername || "");
   const [error, setError] = useState("");
@@ -17,30 +18,22 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
     let clean = raw.trim();
     if (!clean) { setError("enter a username"); return; }
     if (clean.length < 2) { setError("at least 2 characters"); return; }
-
     setLoading(true);
-
     const since = new Date(Date.now() - HOURS * 3600 * 1000).toISOString();
     const { data } = await supabase
-      .from("chat_messages")
-      .select("username")
-      .ilike("username", `${clean}%`)
-      .gte("created_at", since);
-
+      .from("chat_messages").select("username")
+      .ilike("username", `${clean}%`).gte("created_at", since);
     const taken = data?.map((d) => d.username.toLowerCase()) || [];
-
     let finalName = clean;
     if (taken.includes(clean.toLowerCase())) {
       let i = 1;
       while (taken.includes(`${clean.toLowerCase()}_0${i}`)) i++;
       finalName = `${clean}_0${i}`;
     }
-
-    const session = {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
       username: finalName,
       expiresAt: Date.now() + HOURS * 3600 * 1000,
-    };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    }));
     setLoading(false);
     onDone(finalName);
   };
@@ -49,67 +42,149 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
     <div className="fixed inset-0 bg-[#090d16]/80 backdrop-blur-sm flex flex-col items-center justify-center px-6 z-50">
       <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-7 shadow-2xl relative">
         {currentUsername && (
-          <button
-            onClick={onCancel}
-            className="absolute top-6 left-6 text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-950 border border-slate-800 transition active:scale-90 flex items-center justify-center"
-          >
+          <button onClick={onCancel}
+            className="absolute top-6 left-6 text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-950 border border-slate-800 transition active:scale-90 flex items-center justify-center">
             <ArrowLeft size={16} />
           </button>
         )}
-
         <div className="text-center mb-6 mt-4">
-          <p className="text-4xl mb-2">🎭</p>
+          <p className="text-4xl mb-2"></p>
           <h1 className="text-2xl font-black text-slate-100 tracking-tight">set your vibe</h1>
           <p className="text-slate-400 text-xs mt-1.5 leading-relaxed">
             this username deletes in {HOURS} hours or you can change it anytime
           </p>
         </div>
-
         <div className={`flex items-center bg-slate-950 border rounded-2xl px-4 py-3 transition-all mb-2 ${error ? "border-red-500/50" : "border-slate-800 focus-within:border-blue-500/60"}`}>
           <span className="text-blue-400 font-black mr-2 text-sm">@</span>
-          <input
-            value={name}
+          <input value={name}
             onChange={(e) => { setName(e.target.value.replace(/[^a-zA-Z0-9_]/g, '')); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && tryUsername(name)}
-            placeholder="username"
-            maxLength={20}
-            autoFocus
-            className="flex-1 bg-transparent text-slate-100 text-sm font-semibold outline-none placeholder-slate-700"
-          />
+            placeholder="username" maxLength={20} autoFocus
+            className="flex-1 bg-transparent text-slate-100 text-sm font-semibold outline-none placeholder-slate-700" />
         </div>
         {error && <p className="text-red-400 text-xs mb-2 ml-1">{error}</p>}
-
-        <p className="text-[11px] text-slate-500 mb-2 mt-4 font-semibold uppercase tracking-wider">✨ suggestions</p>
+        <p className="text-[11px] text-slate-500 mb-2 mt-4 font-semibold uppercase tracking-wider"> suggestions</p>
         <div className="flex flex-wrap gap-2 mb-6">
           {EXAMPLES.map((n) => (
-            <button
-              key={n}
-              onClick={() => { setName(n); setError(""); }}
-              className={`text-xs font-bold px-3 py-2 rounded-full border transition-all active:scale-95 ${
-                name === n
-                  ? "bg-blue-600 text-white border-blue-500"
-                  : "bg-slate-950 text-slate-400 border-slate-800"
-              }`}
-            >
+            <button key={n} onClick={() => { setName(n); setError(""); }}
+              className={`text-xs font-bold px-3 py-2 rounded-full border transition-all active:scale-95 ${name === n ? "bg-blue-600 text-white border-blue-500" : "bg-slate-950 text-slate-400 border-slate-800"}`}>
               @{n}
             </button>
           ))}
         </div>
-
-        <button
-          onClick={() => tryUsername(name)}
-          disabled={loading || !name.trim()}
+        <button onClick={() => tryUsername(name)} disabled={loading || !name.trim()}
           className="w-full py-3.5 rounded-2xl font-black text-sm text-white transition-all active:scale-95 disabled:opacity-30"
-          style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
-        >
-          {loading ? "checking…" : "save username →"}
+          style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}>
+          {loading ? "checking" : "save username "}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── MAIN CHAT ROOM COMPONENT ─────────────────────────────────────────────────
+//  SWIPEABLE MESSAGE ROW 
+function SwipeableMessage({ msg, isMe, children, onReply }) {
+  const [dragX, setDragX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const [triggered, setTriggered] = useState(false);
+  const startX = useRef(null);
+  const startY = useRef(null);
+  const isLocked = useRef(false); // locked to horizontal drag
+
+  const handleTouchStart = (e) => {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    isLocked.current = false;
+    setTriggered(false);
+  };
+
+  const handleTouchMove = (e) => {
+    if (startX.current === null) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+
+    // On first move, decide axis lock
+    if (!isLocked.current) {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // Vertical scroll  abort swipe
+        startX.current = null;
+        return;
+      }
+      isLocked.current = true;
+    }
+
+    // For received msgs: swipe right (dx > 0). For sent: swipe left (dx < 0)
+    const direction = isMe ? -1 : 1;
+    const raw = dx * direction;
+    if (raw < 0) return; // wrong direction
+
+    e.preventDefault(); // stop scroll only when swiping horizontally
+    setSwiping(true);
+
+    // Rubber-band resistance after threshold
+    const clamped = raw < SWIPE_THRESHOLD
+      ? raw
+      : SWIPE_THRESHOLD + (raw - SWIPE_THRESHOLD) * 0.2;
+
+    setDragX(clamped * direction);
+
+    if (raw >= SWIPE_THRESHOLD && !triggered) {
+      setTriggered(true);
+      // Haptic if available
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (triggered) onReply(msg);
+    setSwiping(false);
+    setTriggered(false);
+    setDragX(0);
+    startX.current = null;
+    isLocked.current = false;
+  };
+
+  const replyIconOpacity = Math.min(Math.abs(dragX) / SWIPE_THRESHOLD, 1);
+  const replyIconScale = 0.6 + replyIconOpacity * 0.4;
+
+  return (
+    <div className="relative">
+      {/* Reply icon revealed behind  clipped by its own wrapper */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        className="absolute inset-y-0 flex items-center"
+        style={{
+          [isMe ? "left" : "right"]: 0,
+          opacity: replyIconOpacity,
+          transform: `scale(${replyIconScale})`,
+          transition: swiping ? "none" : "opacity 0.2s, transform 0.2s",
+          padding: "0 12px",
+        }}
+      >
+        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+          <Reply size={14} className="text-sky-400" style={{ transform: isMe ? "scaleX(-1)" : "none" }} />
+        </div>
+      </div>
+      </div>
+
+      {/* Sliding content */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          transform: `translateX(${dragX}px)`,
+          transition: swiping ? "none" : "transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+//  MAIN CHAT COMPONENT 
 export default function Chat() {
   const navigate = useNavigate();
   const [username, setUsername] = useState(null);
@@ -117,13 +192,10 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-
-  // 3-dot menu state
   const [openMenuId, setOpenMenuId] = useState(null);
-
-  // Inline edit state
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
+  const [replyTo, setReplyTo] = useState(null); // { id, username, message }
 
   const bottomRef = useRef();
   const inputRef = useRef();
@@ -137,9 +209,7 @@ export default function Chat() {
   // Close menu on outside tap
   useEffect(() => {
     const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpenMenuId(null);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null);
     };
     document.addEventListener("mousedown", handler);
     document.addEventListener("touchstart", handler);
@@ -154,46 +224,23 @@ export default function Chat() {
     const raw = localStorage.getItem(SESSION_KEY);
     if (raw) {
       const session = JSON.parse(raw);
-      if (Date.now() < session.expiresAt) {
-        setUsername(session.username);
-      } else {
-        localStorage.removeItem(SESSION_KEY);
-      }
+      if (Date.now() < session.expiresAt) setUsername(session.username);
+      else localStorage.removeItem(SESSION_KEY);
     }
   }, []);
 
-  // Realtime subscription
+  // Realtime
   useEffect(() => {
     if (!username || !batchId) return;
     fetchMessages();
-
-    const ch = supabase
-      .channel(`batch-chat-${batchId}`)
-      .on("postgres_changes", {
-        event: "INSERT", schema: "public",
-        table: "chat_messages",
-        filter: `batch_id=eq.${batchId}`,
-      }, (p) => {
-        setMessages((prev) => [...prev, p.new]);
-      })
-      .on("postgres_changes", {
-        event: "UPDATE", schema: "public",
-        table: "chat_messages",
-        filter: `batch_id=eq.${batchId}`,
-      }, (p) => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === p.new.id ? p.new : m))
-        );
-      })
-      .on("postgres_changes", {
-        event: "DELETE", schema: "public",
-        table: "chat_messages",
-        filter: `batch_id=eq.${batchId}`,
-      }, (p) => {
-        setMessages((prev) => prev.filter((m) => m.id !== p.old.id));
-      })
+    const ch = supabase.channel(`batch-chat-${batchId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `batch_id=eq.${batchId}` },
+        (p) => setMessages((prev) => [...prev, p.new]))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages", filter: `batch_id=eq.${batchId}` },
+        (p) => setMessages((prev) => prev.map((m) => m.id === p.new.id ? p.new : m)))
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages", filter: `batch_id=eq.${batchId}` },
+        (p) => setMessages((prev) => prev.filter((m) => m.id !== p.old.id)))
       .subscribe();
-
     return () => supabase.removeChannel(ch);
   }, [username, batchId]);
 
@@ -204,18 +251,20 @@ export default function Chat() {
   const fetchMessages = async () => {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id, username, message, edited")
+      .select("id, username, message, edited, reply_to")
       .eq("batch_id", batchId)
       .order("created_at", { ascending: true })
       .limit(100);
     setMessages(data || []);
   };
 
-  // ── SEND ──
+  // Helper: find quoted message by id
+  const getQuoted = (replyToId) => messages.find((m) => m.id === replyToId);
+
+  //  SEND 
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
-    // Blur input so keyboard closes on mobile
     inputRef.current?.blur();
     await supabase.from("chat_messages").insert({
       message: text.trim(),
@@ -223,40 +272,46 @@ export default function Chat() {
       batch_id: batchId,
       user_id: currentUser?.id || null,
       type: "text",
+      reply_to: replyTo?.id || null,
     });
     setText("");
+    setReplyTo(null);
     setSending(false);
   };
 
-  // ── EDIT ──
+  //  EDIT 
+  const originalTextRef = useRef("");
   const startEdit = (msg) => {
     setOpenMenuId(null);
     setEditingId(msg.id);
     setEditText(msg.message);
+    originalTextRef.current = msg.message;
   };
-
   const saveEdit = async (id) => {
-    if (!editText.trim()) return;
-    await supabase
-      .from("chat_messages")
-      .update({ message: editText.trim(), edited: true })
-      .eq("id", id);
+    const trimmed = editText.trim();
+    if (!trimmed) return;
+    const changed = trimmed !== originalTextRef.current.trim();
+    await supabase.from("chat_messages").update({
+      message: trimmed,
+      ...(changed ? { edited: true } : {}),
+    }).eq("id", id);
     setEditingId(null);
     setEditText("");
   };
+  const cancelEdit = () => { setEditingId(null); setEditText(""); };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditText("");
-  };
-
-  // ── DELETE ──
+  //  DELETE 
   const deleteMsg = async (id) => {
     setOpenMenuId(null);
-    const confirmed = window.confirm("Delete this message? This can't be undone.");
-    if (!confirmed) return;
+    if (!window.confirm("Delete this message? This can't be undone.")) return;
     await supabase.from("chat_messages").delete().eq("id", id);
   };
+
+  //  REPLY 
+  const handleReply = useCallback((msg) => {
+    setReplyTo({ id: msg.id, username: msg.username, message: msg.message });
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-[#090d16] text-slate-100 flex flex-col overflow-hidden overscroll-none">
@@ -271,27 +326,16 @@ export default function Chat() {
 
       {/* HEADER */}
       <header className="flex-shrink-0 h-16 border-b border-slate-900/60 px-4 flex items-center gap-3 bg-[#090d16]/90 backdrop-blur-md z-10">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md flex items-center justify-center flex-shrink-0"
-        >
+        <button onClick={() => navigate(-1)}
+          className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md flex items-center justify-center flex-shrink-0">
           <ArrowLeft size={18} />
         </button>
-
-        <div
-          className="flex-1 min-w-0 border border-blue-500/30 rounded-2xl px-4 h-11 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] animate-gradient-xy bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600"
-          style={{ backgroundSize: "200% 200%" }}
-        >
-          <p className="font-extrabold text-white text-sm truncate uppercase tracking-wider drop-shadow-sm">
-            {batchName}
-          </p>
+        <div className="flex-1 min-w-0 border border-blue-500/30 rounded-2xl px-4 h-11 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600">
+          <p className="font-extrabold text-white text-sm truncate uppercase tracking-wider drop-shadow-sm">{batchName}</p>
         </div>
-
         {username && (
-          <button
-            onClick={() => setIsEditingUsername(true)}
-            className="flex items-center gap-2 px-3.5 h-11 rounded-2xl border border-slate-800 bg-slate-900 active:scale-95 transition flex-shrink-0 shadow-md"
-          >
+          <button onClick={() => setIsEditingUsername(true)}
+            className="flex items-center gap-2 px-3.5 h-11 rounded-2xl border border-slate-800 bg-slate-900 active:scale-95 transition flex-shrink-0 shadow-md">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
             <span className="text-slate-200 font-bold text-xs max-w-[80px] truncate">@{username}</span>
           </button>
@@ -299,130 +343,125 @@ export default function Chat() {
       </header>
 
       {/* MESSAGES */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-3xl w-full mx-auto overscroll-contain">
+      <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3 max-w-3xl w-full mx-auto overscroll-contain">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="text-4xl mb-2">💬</p>
+            <p className="text-4xl mb-2"></p>
             <p className="font-bold text-slate-400">No messages yet</p>
-            <p className="text-slate-600 text-sm">Send a message to start the conversation</p>
+            <p className="text-slate-600 text-sm">Swipe a message to reply</p>
           </div>
         ) : (
           messages.map((msg) => {
             const isMe = msg.username === username;
             const isEditing = editingId === msg.id;
             const menuOpen = openMenuId === msg.id;
+            const quoted = msg.reply_to ? getQuoted(msg.reply_to) : null;
 
             return (
-              <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                <div className={`flex items-end gap-1.5 max-w-[85%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+              <SwipeableMessage key={msg.id} msg={msg} isMe={isMe} onReply={handleReply}>
+                <div className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                  <div className={`flex items-start gap-1.5 max-w-[85%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
 
-                  {/* 3-DOT MENU — only on own messages, pinned to top */}
-                  {isMe && !isEditing && (
-                    <div className="relative flex-shrink-0 self-start mt-0" ref={menuOpen ? menuRef : null}>
-                      <button
-                        onClick={() => setOpenMenuId(menuOpen ? null : msg.id)}
-                        className="p-1.5 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition active:scale-90"
-                      >
-                        <MoreVertical size={15} />
-                      </button>
-
-                      {menuOpen && (
-                        <div
-                          ref={menuRef}
-                          className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden z-30 min-w-[120px]"
-                        >
-                          <button
-                            onClick={() => startEdit(msg)}
-                            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 transition"
-                          >
-                            <Pencil size={13} className="text-blue-400" />
-                            Edit
-                          </button>
-                          <div className="h-px bg-slate-700" />
-                          <button
-                            onClick={() => deleteMsg(msg.id)}
-                            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-slate-700 transition"
-                          >
-                            <Trash2 size={13} />
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* BUBBLE */}
-                  <div className="flex flex-col space-y-1">
-                    {!isMe && (
-                      <p className="text-[10px] font-bold text-sky-400/90 px-1 text-left">
-                        @{msg.username}
-                      </p>
-                    )}
-
-                    {isEditing ? (
-                      /* EDIT MODE */
-                      <div className="bg-[#1e293b] border border-blue-500/50 rounded-3xl px-3 py-2.5 flex items-center gap-2 min-w-[180px]">
-                        <input
-                          autoFocus
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) saveEdit(msg.id);
-                            if (e.key === "Escape") cancelEdit();
-                          }}
-                          className="flex-1 bg-transparent text-sm text-slate-100 outline-none"
-                        />
-                        <button onClick={() => saveEdit(msg.id)} className="text-emerald-400 hover:text-emerald-300 active:scale-90 transition p-0.5">
-                          <Check size={15} />
+                    {/* 3-DOT  own messages only, pinned top */}
+                    {isMe && !isEditing && (
+                      <div className="relative flex-shrink-0 self-start" ref={menuOpen ? menuRef : null}>
+                        <button onClick={() => setOpenMenuId(menuOpen ? null : msg.id)}
+                          className="p-1.5 rounded-xl text-slate-600 hover:text-slate-300 hover:bg-slate-800 transition active:scale-90">
+                          <MoreVertical size={15} />
                         </button>
-                        <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-300 active:scale-90 transition p-0.5">
-                          <X size={15} />
-                        </button>
-                      </div>
-                    ) : (
-                      /* NORMAL BUBBLE */
-                      <div
-                        className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm break-words max-w-full ${
-                          isMe ? "text-white font-medium" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"
-                        }`}
-                        style={isMe ? { background: "linear-gradient(135deg, #2563eb, #0284c7)" } : {}}
-                      >
-                        {msg.message}
-                        {msg.edited && (
-                          <span className="ml-1.5 text-[10px] opacity-60 font-normal">edited</span>
+                        {menuOpen && (
+                          <div ref={menuRef}
+                            className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden z-50 min-w-[120px]">
+                            <button onClick={() => startEdit(msg)}
+                              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 transition">
+                              <Pencil size={13} className="text-blue-400" /> Edit
+                            </button>
+                            <div className="h-px bg-slate-700" />
+                            <button onClick={() => deleteMsg(msg.id)}
+                              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-slate-700 transition">
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
+
+                    {/* BUBBLE COLUMN */}
+                    <div className="flex flex-col space-y-1 min-w-0">
+                      {!isMe && (
+                        <p className="text-[10px] font-bold text-sky-400/90 px-1">@{msg.username}</p>
+                      )}
+
+                      {/* QUOTED PREVIEW */}
+                      {quoted && (
+                        <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-0.5`}>
+                          <div className={`flex items-stretch max-w-full rounded-2xl overflow-hidden border ${isMe ? "border-blue-400/30 bg-blue-950/40" : "border-slate-700 bg-slate-800/60"}`}>
+                            <div className={`w-1 flex-shrink-0 ${isMe ? "bg-blue-400" : "bg-sky-500"}`} />
+                            <div className="px-3 py-2 min-w-0">
+                              <p className={`text-[10px] font-bold mb-0.5 ${isMe ? "text-blue-300" : "text-sky-400"}`}>
+                                @{quoted.username}
+                              </p>
+                              <p className="text-xs text-slate-400 truncate max-w-[200px]">{quoted.message}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* EDIT / NORMAL BUBBLE */}
+                      {isEditing ? (
+                        <div className="w-full max-w-[260px] bg-[#1e293b] border border-blue-500/50 rounded-3xl px-3 py-2.5 flex items-center gap-2">
+                          <input autoFocus value={editText} onChange={(e) => setEditText(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) saveEdit(msg.id); if (e.key === "Escape") cancelEdit(); }}
+                            className="flex-1 min-w-0 bg-transparent text-sm text-slate-100 outline-none" />
+                          <button onClick={() => saveEdit(msg.id)} className="text-emerald-400 hover:text-emerald-300 active:scale-90 transition p-0.5 flex-shrink-0"><Check size={15} /></button>
+                          <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-300 active:scale-90 transition p-0.5 flex-shrink-0"><X size={15} /></button>
+                        </div>
+                      ) : (
+                        <div
+                          className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm break-words ${isMe ? "text-white font-medium" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"}`}
+                          style={isMe ? { background: "linear-gradient(135deg, #2563eb, #0284c7)" } : {}}>
+                          {msg.message}
+                          {msg.edited && <span className="ml-1.5 text-[10px] opacity-60 font-normal">edited</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </SwipeableMessage>
             );
           })
         )}
         <div ref={bottomRef} />
       </main>
 
-      {/* FOOTER */}
-      <div
-        className="flex-shrink-0 border-t border-slate-900/60 px-3 py-3 flex items-center gap-2 bg-[#090d16] z-10"
-        style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
-      >
+      {/* REPLY PREVIEW BAR */}
+      {replyTo && (
+        <div className="flex-shrink-0 mx-3 mb-2 flex items-stretch bg-[#0f172a] border border-slate-700 rounded-2xl overflow-hidden">
+          <div className="w-1 bg-sky-500 flex-shrink-0" />
+          <div className="flex-1 px-3 py-2 min-w-0">
+            <p className="text-[10px] font-bold text-sky-400 mb-0.5">replying to @{replyTo.username}</p>
+            <p className="text-xs text-slate-400 truncate">{replyTo.message}</p>
+          </div>
+          <button onClick={() => setReplyTo(null)}
+            className="px-3 text-slate-500 hover:text-slate-300 transition active:scale-90 flex-shrink-0">
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+{/* FOOTER */}
+      <div className="flex-shrink-0 border-t border-slate-900/60 px-3 py-3 flex items-center gap-2 bg-[#090d16] z-10"
+        style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
         <div className="flex-1 flex items-center bg-[#0f172a] border border-slate-800 rounded-2xl px-4 py-2.5 gap-2 focus-within:border-blue-500/50 transition min-w-0">
-          <input
-            ref={inputRef}
-            value={text}
+          <input ref={inputRef} value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={username ? `message as @${username}…` : "Type a message..."}
-            className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0"
-          />
+            placeholder={username ? `message as @${username}...` : "Type a message..."}
+            className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0" />
         </div>
-        <button
-          onClick={send}
-          disabled={!text.trim() || sending}
+        <button onClick={send} disabled={!text.trim() || sending}
           className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
-        >
+          style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}>
           <Send size={16} />
         </button>
       </div>
@@ -430,4 +469,3 @@ export default function Chat() {
     </div>
   );
 }
-
