@@ -30,7 +30,6 @@ const GRAD = [
 ];
 const grad = (name = "") => GRAD[(name.charCodeAt(0) || 0) % GRAD.length];
 
-// Modern Blue for Comments
 const COMMENT_AVATAR_GRAD = "from-blue-500 to-indigo-600";
 
 // ─── Delete Comment Alert ─────────────────────────────────────────────────────
@@ -151,7 +150,6 @@ function CommentSheet({ post, currentUser, onClose }) {
 
               return (
                 <div key={c.id} className="flex gap-3 group">
-                  {/* Modern Blue Avatar */}
                   <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${COMMENT_AVATAR_GRAD} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
                     {name[0].toUpperCase()}
                   </div>
@@ -164,13 +162,12 @@ function CommentSheet({ post, currentUser, onClose }) {
                     <p className="text-[11px] text-gray-400 mt-0.5">{timeAgo(c.created_at)}</p>
                   </div>
 
-                  {/* Trash bin for own comment */}
                   {isOwnComment && (
                     <button
                       onClick={() => confirmDelete(c.id)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition self-start mt-1 p-1"
+                      className="text-red-500 hover:text-red-600 transition self-start mt-1 p-1"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={20} />
                     </button>
                   )}
                 </div>
@@ -179,12 +176,12 @@ function CommentSheet({ post, currentUser, onClose }) {
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="px-3 py-3 border-t border-gray-100 flex items-center gap-2">
+        {/* Input Area - Bigger Send Button + Safe Area */}
+        <div className="px-3 py-3 border-t border-gray-100 flex items-center gap-2 pb-[env(safe-area-inset-bottom,20px)]">
           <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${COMMENT_AVATAR_GRAD} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
             {(currentUser?.name || "?")[0].toUpperCase()}
           </div>
-          <div className="flex-1 flex items-center bg-gray-100 rounded-full px-3 py-2 gap-2 min-w-0">
+          <div className="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-3 gap-3 min-w-0">
             <input
               ref={inputRef}
               value={text}
@@ -196,17 +193,14 @@ function CommentSheet({ post, currentUser, onClose }) {
             <button
               onClick={sendComment}
               disabled={!text.trim() || sending}
-              className="text-blue-500 disabled:opacity-30 hover:text-blue-600 transition flex-shrink-0"
+              className="text-blue-600 disabled:opacity-40 hover:scale-110 active:scale-95 transition flex-shrink-0 p-1"
             >
-              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {sending ? <Loader2 size={24} className="animate-spin" /> : <Send size={26} />}
             </button>
           </div>
         </div>
-
-        <div style={{ paddingBottom: "env(safe-area-inset-bottom, 12px)" }} />
       </div>
 
-      {/* Delete Confirmation Alert */}
       {commentToDelete && (
         <DeleteCommentAlert 
           onConfirm={deleteComment} 
@@ -217,7 +211,7 @@ function CommentSheet({ post, currentUser, onClose }) {
   );
 }
 
-// ─── Delete Post Alert (unchanged) ───────────────────────────────────────────
+// ─── Delete Post Alert ─────────────────────────────────────────────────────
 function DeleteAlert({ onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center px-6">
@@ -243,7 +237,7 @@ function DeleteAlert({ onConfirm, onCancel }) {
   );
 }
 
-// ─── Rest of the code remains the same (PostCard, Skeleton, Home) ─────────────
+// ─── Post Card ────────────────────────────────────────────────────────────────
 function PostCard({ post, currentUser, onDeleted }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -292,7 +286,11 @@ function PostCard({ post, currentUser, onDeleted }) {
   const handleImgTap = () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      if (!liked) { toggleLike(); setHeartPop(true); setTimeout(() => setHeartPop(false), 800); }
+      if (!liked) { 
+        toggleLike(); 
+        setHeartPop(true); 
+        setTimeout(() => setHeartPop(false), 800); 
+      }
     }
     lastTap.current = now;
   };
@@ -303,12 +301,14 @@ function PostCard({ post, currentUser, onDeleted }) {
   const handleDelete = async () => {
     setShowDeleteAlert(false);
     await supabase.from("posts").delete().eq("id", post.id);
-    onDeleted(post.id);
+    onDeleted(post.id);   // This triggers re-arrangement in parent
   };
 
   return (
     <>
       <div className="border-b border-gray-100 w-full bg-white">
+
+        {/* Author row */}
         <div className="flex items-center gap-3 px-3 py-3">
           <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad(name)} flex items-center justify-center font-bold text-white text-sm flex-shrink-0`}>
             {name[0].toUpperCase()}
@@ -340,6 +340,7 @@ function PostCard({ post, currentUser, onDeleted }) {
           )}
         </div>
 
+        {/* Images */}
         {images.length > 0 && (
           <div className="relative w-full bg-gray-100" style={{ aspectRatio: "1/1" }}>
             <img
@@ -347,7 +348,10 @@ function PostCard({ post, currentUser, onDeleted }) {
               alt=""
               className="w-full h-full object-cover"
               onClick={handleImgTap}
-              onDoubleClick={(e) => { e.stopPropagation(); setZoomedImg(images[imgIdx]?.image_url); }}
+              onDoubleClick={(e) => { 
+                e.stopPropagation(); 
+                setZoomedImg(images[imgIdx]?.image_url); 
+              }}
             />
 
             {heartPop && (
@@ -398,6 +402,7 @@ function PostCard({ post, currentUser, onDeleted }) {
           </div>
         )}
 
+        {/* Actions */}
         <div className="flex items-center gap-4 px-3 pt-3 pb-1">
           <button
             onClick={toggleLike}
@@ -432,22 +437,29 @@ function PostCard({ post, currentUser, onDeleted }) {
         <DeleteAlert onConfirm={handleDelete} onCancel={() => setShowDeleteAlert(false)} />
       )}
 
+      {/* Enhanced Zoomed Image Modal - Instagram-like smooth pinch zoom */}
       {zoomedImg && (
         <div
-          className="fixed inset-0 z-[70] bg-black flex items-center justify-center"
+          className="fixed inset-0 z-[70] bg-black flex items-center justify-center overflow-hidden"
           onClick={() => setZoomedImg(null)}
         >
           <img
             src={zoomedImg}
             alt=""
-            className="max-w-full max-h-full object-contain"
-            style={{ touchAction: "pinch-zoom" }}
+            className="max-w-full max-h-full object-contain select-none transition-transform duration-200 ease-out"
+            style={{ 
+              touchAction: "pinch-zoom", 
+              userSelect: "none",
+              maxWidth: "100%",
+              maxHeight: "100%"
+            }}
+            draggable={false}
           />
           <button
-            onClick={() => setZoomedImg(null)}
-            className="absolute top-4 right-4 text-white bg-black/40 rounded-full p-2"
+            onClick={(e) => { e.stopPropagation(); setZoomedImg(null); }}
+            className="absolute top-6 right-6 text-white bg-black/50 hover:bg-black/70 rounded-full p-3 transition"
           >
-            <X size={22} />
+            <X size={28} />
           </button>
         </div>
       )}
@@ -455,6 +467,7 @@ function PostCard({ post, currentUser, onDeleted }) {
   );
 }
 
+// Skeleton & Home (unchanged)
 function Skeleton() {
   return (
     <div className="border-b border-gray-100 bg-white animate-pulse">
@@ -495,7 +508,12 @@ export default function Home() {
       .from("posts")
       .select(`id, caption, full_name, user_id, created_at, post_images(id, image_url, position)`)
       .order("created_at", { ascending: false });
-    if (err) { setError(err.message); setLoading(false); setRefreshing(false); return; }
+    if (err) { 
+      setError(err.message); 
+      setLoading(false); 
+      setRefreshing(false); 
+      return; 
+    }
     const sorted = (data || []).map((p) => ({
       ...p,
       post_images: (p.post_images || []).sort((a, b) => a.position - b.position),
@@ -534,7 +552,7 @@ export default function Home() {
   return (
     <>
       <style>{`
-        @keyframes slideUp {
+   @keyframes slideUp {
           from { transform: translateY(100%); }
           to   { transform: translateY(0); }
         }
@@ -546,7 +564,7 @@ export default function Home() {
         }
       `}</style>
 
- <div
+      <div
         className="min-h-screen w-full bg-white text-gray-900 pb-24"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
