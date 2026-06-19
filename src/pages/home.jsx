@@ -1,32 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
-import { Heart, MessageCircle, Loader2, X, Send, Bell } from "lucide-react";
-import { setupNotifications } from "../lib/notifications";
-
-function formatTimeAgo(timestamp) {
-  if (!timestamp) return "";
-  const createdDate = new Date(timestamp);
-  if (isNaN(createdDate.getTime())) return ""; 
-  
-  const nowDate = new Date();
-  const createdUTC = createdDate.getTime() - (createdDate.getTimezoneOffset() * 60000);
-  const nowUTC = nowDate.getTime() - (nowDate.getTimezoneOffset() * 60000);
-  const differenceInSeconds = Math.floor((nowUTC - createdUTC) / 1000);
-  
-  if (differenceInSeconds < 0) return "1s"; 
-  if (differenceInSeconds < 60) return `${Math.max(1, differenceInSeconds)}s`;
-  
-  const differenceInMinutes = Math.floor(differenceInSeconds / 60);
-  if (differenceInMinutes < 60) return `${differenceInMinutes}m`;
-  
-  const differenceInHours = Math.floor(differenceInMinutes / 60);
-  if (differenceInHours < 24) return `${differenceInHours}h`;
-  
-  const differenceInDays = Math.floor(differenceInHours / 24);
-  if (differenceInDays < 7) return `${differenceInDays}d`;
-  
-  return createdDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
+import { 
+  Heart, 
+  MessageCircle, 
+  Loader2, 
+  X, 
+  Send, 
+  MoreVertical, 
+  Trash2,
+  ChevronLeft,
+  ChevronRight 
+} from "lucide-react";
 
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts)) / 1000);
@@ -46,32 +30,52 @@ const GRAD = [
 ];
 const grad = (name = "") => GRAD[(name.charCodeAt(0) || 0) % GRAD.length];
 
-// ─── Comment Sheet Component ───────────────────────────────────────────────────
+// Modern Blue for Comments
+const COMMENT_AVATAR_GRAD = "from-blue-500 to-indigo-600";
+
+// ─── Delete Comment Alert ─────────────────────────────────────────────────────
+function DeleteCommentAlert({ onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center px-6">
+      <div className="w-full max-w-xs bg-white rounded-2xl p-5 shadow-2xl">
+        <p className="font-bold text-gray-900 text-base mb-1">Delete comment?</p>
+        <p className="text-sm text-gray-500 mb-5">This action cannot be undone.</p>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm transition active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold text-sm transition active:scale-95"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Comment Sheet ────────────────────────────────────────────────────────────
 function CommentSheet({ post, currentUser, onClose }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
   const inputRef = useRef();
   const backdropRef = useRef();
 
   useEffect(() => {
-    document.body.className = "comments-open";
     fetchComments();
     setTimeout(() => inputRef.current?.focus(), 400);
-    return () => { document.body.className = ""; };
   }, []);
 
   const handleBackdrop = (e) => {
-    if (e.target === backdropRef.current) {
-      document.body.className = "";
-      onClose();
-    }
-  };
-
-  const handleCloseSheet = () => {
-    document.body.className = "";
-    onClose();
+    if (e.target === backdropRef.current) onClose();
   };
 
   const fetchComments = async () => {
@@ -86,78 +90,175 @@ function CommentSheet({ post, currentUser, onClose }) {
   };
 
   const sendComment = async () => {
-    if (!text.trim() || sending || !currentUser?.id) return;
+    if (!text.trim() || sending || !currentUser) return;
     setSending(true);
     const { data, error } = await supabase
       .from("comments")
       .insert({ post_id: post.id, user_id: currentUser.id, comment: text.trim() })
       .select("id, comment, created_at, user_id, students(full_name)")
       .single();
-    if (!error && data) { setComments((p) => [...p, data]); setText(""); }
+    if (!error && data) { 
+      setComments((p) => [...p, data]); 
+      setText(""); 
+    }
     setSending(false);
   };
 
+  const confirmDelete = (id) => {
+    setCommentToDelete(id);
+  };
+
+  const deleteComment = async () => {
+    if (!commentToDelete) return;
+    await supabase.from("comments").delete().eq("id", commentToDelete);
+    setComments((p) => p.filter((c) => c.id !== commentToDelete));
+    setCommentToDelete(null);
+  };
+
   return (
-    <div ref={backdropRef} onClick={handleBackdrop} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center overscroll-none select-none animate-fade-in">
-      <div className="w-full max-w-md bg-white rounded-t-[28px] flex flex-col overflow-hidden shadow-2xl transition-all duration-300 transform translate-y-0" style={{ height: "85vh", maxHeight: "85vh" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex-shrink-0 px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white">
-          <div className="flex flex-col gap-0.5">
-            <h3 className="text-sm font-black text-gray-900 tracking-tight">Comments</h3>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Students Harate</p>
-          </div>
-          <button onClick={handleCloseSheet} className="text-gray-400 hover:text-gray-600 text-xs font-bold px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100/70 transition active:scale-95">Close</button>
+    <div
+      ref={backdropRef}
+      onClick={handleBackdrop}
+      className="fixed inset-0 z-50 bg-black/40 flex items-end"
+      style={{ backdropFilter: "blur(2px)" }}
+    >
+      <div
+        className="w-full bg-white rounded-t-3xl flex flex-col shadow-2xl"
+        style={{ maxHeight: "85vh", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-gray-50/50 overscroll-contain">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <p className="font-bold text-gray-900 text-sm">Comments</p>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 space-y-2">
-              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Loading Feed...</span>
+            <div className="flex justify-center py-8">
+              <Loader2 size={20} className="animate-spin text-gray-300" />
             </div>
           ) : comments.length === 0 ? (
-            <div className="text-center py-16 flex flex-col items-center justify-center space-y-1">
-              <span className="text-sm font-bold text-gray-700">No comments yet</span>
-              <span className="text-xs text-gray-400 max-w-[200px]">Be the first one in your batch to say something!</span>
-            </div>
+            <p className="text-gray-400 text-sm text-center py-8">No comments yet. Be first!</p>
           ) : (
-            comments.map((c) => (
-              <div key={c.id} className="flex gap-2.5 items-start animate-slide-up">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center font-black text-white text-xs flex-shrink-0 shadow-sm shadow-blue-500/10">
-                  {c.students?.full_name?.[0]?.toUpperCase() || "?"}
-                </div>
-                <div className="bg-white border border-gray-100 rounded-2xl px-3.5 py-2.5 max-w-[82%] shadow-sm">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-black text-gray-900">{c.students?.full_name}</p>
-                    <span className="w-1 h-1 rounded-full bg-gray-300" />
-                    <span className="text-[10px] font-bold text-gray-400">{formatTimeAgo(c.created_at)}</span>
+            comments.map((c) => {
+              const name = c.students?.full_name || "User";
+              const isOwnComment = c.user_id === currentUser?.id;
+
+              return (
+                <div key={c.id} className="flex gap-3 group">
+                  {/* Modern Blue Avatar */}
+                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${COMMENT_AVATAR_GRAD} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
+                    {name[0].toUpperCase()}
                   </div>
-                  <p className="text-gray-700 mt-1 text-xs leading-relaxed font-medium whitespace-pre-wrap">{c.comment}</p>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900">
+                      <span className="font-semibold mr-1.5">{name.split(" ")[0]}</span>
+                      <span className="text-gray-700 font-normal">{c.comment}</span>
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{timeAgo(c.created_at)}</p>
+                  </div>
+
+                  {/* Trash bin for own comment */}
+                  {isOwnComment && (
+                    <button
+                      onClick={() => confirmDelete(c.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition self-start mt-1 p-1"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
-        <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3.5 py-3 flex items-center gap-2 z-10" style={{ paddingBottom: "max(14px, env(safe-area-inset-bottom))" }}>
-          <input ref={inputRef} type="text" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendComment()} placeholder="Write a responsive comment..." className="flex-1 min-w-0 bg-gray-50 border border-gray-200/80 rounded-full px-4 py-2.5 text-xs text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all duration-200 shadow-inner" />
-          <button onClick={sendComment} disabled={!text.trim() || sending} className="flex-shrink-0 h-9 px-4 rounded-full bg-blue-600 text-white font-black text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 disabled:opacity-20 disabled:scale-100 flex items-center justify-center shadow-md shadow-blue-600/10">{sending ? <Loader2 size={14} className="animate-spin" /> : "Send"}</button>
+        {/* Input Area */}
+        <div className="px-3 py-3 border-t border-gray-100 flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${COMMENT_AVATAR_GRAD} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
+            {(currentUser?.name || "?")[0].toUpperCase()}
+          </div>
+          <div className="flex-1 flex items-center bg-gray-100 rounded-full px-3 py-2 gap-2 min-w-0">
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendComment()}
+              placeholder="Add a comment…"
+              className="flex-1 min-w-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
+            />
+            <button
+              onClick={sendComment}
+              disabled={!text.trim() || sending}
+              className="text-blue-500 disabled:opacity-30 hover:text-blue-600 transition flex-shrink-0"
+            >
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ paddingBottom: "env(safe-area-inset-bottom, 12px)" }} />
+      </div>
+
+      {/* Delete Confirmation Alert */}
+      {commentToDelete && (
+        <DeleteCommentAlert 
+          onConfirm={deleteComment} 
+          onCancel={() => setCommentToDelete(null)} 
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Delete Post Alert (unchanged) ───────────────────────────────────────────
+function DeleteAlert({ onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center px-6">
+      <div className="w-full max-w-xs bg-white rounded-2xl p-5 shadow-2xl">
+        <p className="font-bold text-gray-900 text-base mb-1">Delete post?</p>
+        <p className="text-sm text-gray-500 mb-5">This action cannot be undone.</p>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm transition active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold text-sm transition active:scale-95"
+          >
+            Delete
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Post Card Component ───────────────────────────────────────────────────────
-function PostCard({ post, currentUser }) {
+// ─── Rest of the code remains the same (PostCard, Skeleton, Home) ─────────────
+function PostCard({ post, currentUser, onDeleted }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
-  const [activeOverlayImage, setActiveOverlayImage] = useState(null);
-  const lastTap = useRef(0);
+  const [imgIdx, setImgIdx] = useState(0);
   const [heartPop, setHeartPop] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [zoomedImg, setZoomedImg] = useState(null);
+  const lastTap = useRef(0);
+  const menuRef = useRef();
 
   const images = post.post_images || [];
   const name = post.full_name || "Unknown";
+  const isOwner = post.user_id === currentUser?.id;
 
   useEffect(() => {
     const fetchLikes = async () => {
@@ -166,13 +267,19 @@ function PostCard({ post, currentUser }) {
         .select("id, user_id")
         .eq("post_id", post.id);
       setLikeCount(data?.length || 0);
-      if (currentUser?.id) setLiked(data?.some((l) => l.user_id === currentUser.id) || false);
+      if (currentUser) setLiked(data?.some((l) => l.user_id === currentUser.id) || false);
     };
     fetchLikes();
-  }, [post.id, currentUser]);
+  }, [post.id]);
+
+  useEffect(() => {
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const toggleLike = async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser) return;
     if (liked) {
       await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", currentUser.id);
       setLiked(false); setLikeCount((n) => n - 1);
@@ -182,19 +289,21 @@ function PostCard({ post, currentUser }) {
     }
   };
 
-  const handleImgTap = (imgUrl) => {
+  const handleImgTap = () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      if (!liked) { 
-        toggleLike(); 
-        setHeartPop(true); 
-        setTimeout(() => setHeartPop(false), 800); 
-      }
-    } else {
-      // Single tap triggers the full-screen interactive viewport overlay
-      setActiveOverlayImage(imgUrl);
+      if (!liked) { toggleLike(); setHeartPop(true); setTimeout(() => setHeartPop(false), 800); }
     }
     lastTap.current = now;
+  };
+
+  const goToPrev = () => setImgIdx((i) => (i > 0 ? i - 1 : i));
+  const goToNext = () => setImgIdx((i) => (i < images.length - 1 ? i + 1 : i));
+
+  const handleDelete = async () => {
+    setShowDeleteAlert(false);
+    await supabase.from("posts").delete().eq("id", post.id);
+    onDeleted(post.id);
   };
 
   return (
@@ -204,52 +313,96 @@ function PostCard({ post, currentUser }) {
           <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad(name)} flex items-center justify-center font-bold text-white text-sm flex-shrink-0`}>
             {name[0].toUpperCase()}
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-gray-900">{name}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
             <p className="text-xs text-gray-400">{timeAgo(post.created_at)}</p>
           </div>
+
+          {isOwner && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition"
+              >
+                <MoreVertical size={18} />
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-9 z-20 bg-white shadow-xl rounded-xl border border-gray-100 py-1 w-36">
+                  <button
+                    onClick={() => { setMenuOpen(false); setShowDeleteAlert(true); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition"
+                  >
+                    <Trash2 size={14} /> Delete post
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {images.length > 0 && (
           <div className="relative w-full bg-gray-100" style={{ aspectRatio: "1/1" }}>
-            <div className="w-full h-full flex overflow-x-auto snap-x snap-mandatory scrollbar-none scroll-smooth">
-              {images
-                .sort((a, b) => a.position - b.position)
-                .map((image, index) => (
-                  <div key={image.id || index} className="w-full h-full flex-shrink-0 snap-start snap-always relative" onClick={() => handleImgTap(image.image_url)}>
-                    {image.image_url.endsWith('.mp4') ? (
-                      <video src={image.image_url} className="w-full h-full object-cover" controls muted loop />
-                    ) : (
-                      <img src={image.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    )}
-                  </div>
-                ))}
-            </div>
-
-            {images.length > 1 && (
-              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
-                {images.map((_, dotIndex) => (
-                  <div key={dotIndex} className="w-1.5 h-1.5 rounded-full bg-white/50 border border-black/10 shadow-sm" />
-                ))}
-              </div>
-            )}
-            
-            {images.length > 1 && (
-              <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-black/70 text-[10px] font-black text-slate-200 tracking-wider backdrop-blur-md z-10">
-                Multi-Post
-              </div>
-            )}
+            <img
+              src={images[imgIdx]?.image_url}
+              alt=""
+              className="w-full h-full object-cover"
+              onClick={handleImgTap}
+              onDoubleClick={(e) => { e.stopPropagation(); setZoomedImg(images[imgIdx]?.image_url); }}
+            />
 
             {heartPop && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <Heart size={90} className="fill-white text-white drop-shadow-2xl" style={{ animation: "heartPop 0.8s ease forwards" }} />
+              </div>
+            )}
+
+            {images.length > 1 && (
+              <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                {imgIdx + 1} / {images.length}
+              </div>
+            )}
+
+            {images.length > 1 && (
+              <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-4 px-6">
+                <button
+                  onClick={goToPrev}
+                  disabled={imgIdx === 0}
+                  className="w-9 h-9 flex items-center justify-center text-white bg-black/50 hover:bg-black/70 rounded-full transition disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft size={20} strokeWidth={3} />
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setImgIdx(i)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        i === imgIdx 
+                          ? "bg-white scale-125" 
+                          : "bg-white/60 hover:bg-white/80"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={goToNext}
+                  disabled={imgIdx === images.length - 1}
+                  className="w-9 h-9 flex items-center justify-center text-white bg-black/50 hover:bg-black/70 rounded-full transition disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight size={20} strokeWidth={3} />
+                </button>
               </div>
             )}
           </div>
         )}
 
         <div className="flex items-center gap-4 px-3 pt-3 pb-1">
-          <button onClick={toggleLike} className={`transition-transform active:scale-90 ${liked ? "text-rose-500" : "text-gray-700 hover:text-gray-400"}`}>
+          <button
+            onClick={toggleLike}
+            className={`transition-transform active:scale-90 ${liked ? "text-rose-500" : "text-gray-700 hover:text-gray-400"}`}
+          >
             <Heart size={25} className={liked ? "fill-rose-500" : ""} />
           </button>
           <button onClick={() => setShowComments(true)} className="text-gray-700 hover:text-gray-400 transition">
@@ -257,23 +410,51 @@ function PostCard({ post, currentUser }) {
           </button>
         </div>
 
-        {likeCount > 0 && <p className="px-3 pb-1 text-sm font-semibold text-gray-900">{likeCount} {likeCount === 1 ? "like" : "likes"}</p>}
+        {likeCount > 0 && (
+          <p className="px-3 pb-1 text-sm font-semibold text-gray-900">
+            {likeCount} {likeCount === 1 ? "like" : "likes"}
+          </p>
+        )}
 
         {post.caption && (
-          <p className="px-3 pb-4 text-sm text-gray-800 leading-relaxed">
+          <p className="px-3 pb-4 text-sm text-gray-800 leading-relaxed break-words">
             <span className="font-semibold text-gray-900 mr-1">{name.split(" ")[0]}</span>
             {post.caption}
           </p>
         )}
       </div>
 
-      {showComments && <CommentSheet post={post} currentUser={currentUser} onClose={() => setShowComments(false)} />}
-      {activeOverlayImage && <ImageOverlayModal imageUrl={activeOverlayImage} onClose={() => setActiveOverlayImage(null)} />}
+      {showComments && (
+        <CommentSheet post={post} currentUser={currentUser} onClose={() => setShowComments(false)} />
+      )}
+
+      {showDeleteAlert && (
+        <DeleteAlert onConfirm={handleDelete} onCancel={() => setShowDeleteAlert(false)} />
+      )}
+
+      {zoomedImg && (
+        <div
+          className="fixed inset-0 z-[70] bg-black flex items-center justify-center"
+          onClick={() => setZoomedImg(null)}
+        >
+          <img
+            src={zoomedImg}
+            alt=""
+            className="max-w-full max-h-full object-contain"
+            style={{ touchAction: "pinch-zoom" }}
+          />
+          <button
+            onClick={() => setZoomedImg(null)}
+            className="absolute top-4 right-4 text-white bg-black/40 rounded-full p-2"
+          >
+            <X size={22} />
+          </button>
+        </div>
+      )}
     </>
   );
 }
 
-// ─── Skeleton Component ────────────────────────────────────────────────────────
 function Skeleton() {
   return (
     <div className="border-b border-gray-100 bg-white animate-pulse">
@@ -293,183 +474,118 @@ function Skeleton() {
   );
 }
 
-// ─── Image Zoom View Overlay Component ──────────────────────────────────────────
-function ImageOverlayModal({ imageUrl, onClose }) {
-  if (!imageUrl) return null;
-  const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const touchStartRef = useRef({ distance: 0, x: 0, y: 0 });
-
-  const handleClose = () => {
-    setScale(1); setPosition({ x: 0, y: 0 });
-    onClose();
-  };
-
-  const handleTouchStart = (e) => {
-    if (e.touches.length === 2) {
-      const t1 = e.touches[0]; const t2 = e.touches[1];
-      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      touchStartRef.current.distance = dist;
-    } else if (e.touches.length === 1 && scale > 1) {
-      const t = e.touches[0];
-      touchStartRef.current.x = t.clientX - position.x;
-      touchStartRef.current.y = t.clientY - position.y;
-    }
-  };
-
-  const handleTouchMove = (e) => {
-    if (e.touches.length === 2 && touchStartRef.current.distance > 0) {
-      e.preventDefault();
-      const t1 = e.touches[0]; const t2 = e.touches[1];
-      const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-      const factor = currentDist / touchStartRef.current.distance;
-      setScale(Math.min(Math.max(1, scale * factor), 4));
-      touchStartRef.current.distance = currentDist;
-    } else if (e.touches.length === 1 && scale > 1) {
-      const t = e.touches[0];
-      setPosition({ x: t.clientX - touchStartRef.current.x, y: t.clientY - touchStartRef.current.y });
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center select-none touch-none animate-fade-in" onClick={handleClose}>
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent z-10 pointer-events-none">
-        <span className="text-[10px] font-black text-white/50 tracking-widest uppercase">Pinch to Zoom</span>
-        <button onClick={handleClose} className="pointer-events-auto h-8 px-4 rounded-full bg-white/10 text-white font-bold text-xs border border-white/10 backdrop-blur-md active:scale-95 transition">Close</button>
-      </div>
-      <div className="w-full h-full flex items-center justify-center p-2 overflow-hidden" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={() => touchStartRef.current.distance = 0}>
-        <img src={imageUrl} alt="Zoomable view" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl transition-transform duration-75 will-change-transform" style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }} onClick={(e) => e.stopPropagation()} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Home Core Feed ────────────────────────────────────────────────────────
 export default function Home() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartY = useRef(0);
+  const isPulling = useRef(false);
 
-// replace line 354 with this
-const [currentUser] = useState(() => 
-  JSON.parse(localStorage.getItem("anon_user") || "null")
-);
-  useEffect(() => { 
-    fetchPosts(); 
-    evaluateNotificationOnboarding();
-  }, []);
+  const [currentUser] = useState(() =>
+    JSON.parse(localStorage.getItem("anon_user") || "null")
+  );
 
-  async function evaluateNotificationOnboarding() {
-    try {
-      if (!currentUser?.id) return;
-
-      const { data: studentRecord, error: fetchError } = await supabase
-        .from('students')
-        .select('fcm_token')
-        .eq('id', currentUser.id)
-        .single();
-
-      if (fetchError) throw fetchError;
-      if (studentRecord?.fcm_token) return; 
-      if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
-
-      const lockTimestamp = localStorage.getItem('harate_notification_cooldown');
-      if (lockTimestamp && Date.now() < parseInt(lockTimestamp)) {
-        console.log("Notification banner is on a 10-hour cooldown lock.");
-        return; 
-      }
-
-      setShowNotificationPopup(true);
-    } catch (err) {
-      console.error('Error tracking permission requirements:', err);
-    }
-  }
-
-  async function handleRequestPermission() {
-    setShowNotificationPopup(false);
-    if (currentUser?.id) {
-      await setupNotifications(currentUser.id);
-    }
-  }
-
-  function handleDismissNotification() {
-    setShowNotificationPopup(false);
-    const tenHoursInMs = 10 * 60 * 60 * 1000;
-    const expiration = Date.now() + tenHoursInMs;
-    localStorage.setItem('harate_notification_cooldown', expiration.toString());
-  }
+  useEffect(() => { fetchPosts(); }, []);
 
   const fetchPosts = async () => {
-    setLoading(true); setError(null);
+    setError(null);
     const { data, error: err } = await supabase
       .from("posts")
       .select(`id, caption, full_name, user_id, created_at, post_images(id, image_url, position)`)
       .order("created_at", { ascending: false });
-    if (err) { setError(err.message); setLoading(false); return; }
+    if (err) { setError(err.message); setLoading(false); setRefreshing(false); return; }
     const sorted = (data || []).map((p) => ({
       ...p,
       post_images: (p.post_images || []).sort((a, b) => a.position - b.position),
     }));
     setPosts(sorted);
     setLoading(false);
+    setRefreshing(false);
+  };
+
+  const handleTouchStart = (e) => {
+    if (window.scrollY === 0) {
+      touchStartY.current = e.touches[0].clientY;
+      isPulling.current = true;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isPulling.current) return;
+    const distance = e.touches[0].clientY - touchStartY.current;
+    if (distance > 0) setPullDistance(Math.min(distance, 80));
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance > 50) {
+      setRefreshing(true);
+      fetchPosts();
+    }
+    setPullDistance(0);
+    isPulling.current = false;
+  };
+
+  const handleDeleted = (id) => {
+    setPosts((prev) => prev.filter((p) => p.id !== id));
   };
 
   return (
     <>
       <style>{`
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
+        }
         @keyframes heartPop {
           0%   { transform: scale(0);   opacity: 0; }
           40%  { transform: scale(1.2); opacity: 1; }
           70%  { transform: scale(0.9); opacity: 1; }
           100% { transform: scale(1.1); opacity: 0; }
         }
-        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       `}</style>
 
-      <div className="min-h-screen w-full bg-white text-gray-900 pb-24 relative">
+ <div
+        className="min-h-screen w-full bg-white text-gray-900 pb-24"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {(pullDistance > 0 || refreshing) && (
+          <div
+            className="flex justify-center items-center overflow-hidden transition-all"
+            style={{ height: refreshing ? 50 : pullDistance }}
+          >
+            <Loader2 size={20} className={`text-gray-400 ${refreshing || pullDistance > 50 ? "animate-spin" : ""}`} />
+          </div>
+        )}
+
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-center">
-          <h1 className="font-bold text-gray-900 text-lg tracking-tight">Students Harate</h1>
+          <div className="border border-blue-500/30 rounded-2xl px-4 h-9 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600">
+            <p className="font-extrabold text-white text-sm uppercase tracking-wider drop-shadow-sm">harate</p>
+          </div>
         </header>
 
- {loading ? (
+        {loading ? (
           <><Skeleton /><Skeleton /><Skeleton /></>
         ) : error ? (
           <div className="flex flex-col items-center gap-3 py-24 text-center px-6">
             <p className="text-red-500 text-sm">{error}</p>
-            <button onClick={fetchPosts} className="text-blue-500 border border-blue-200 px-4 py-2 rounded-xl text-sm">Retry</button>
+            <button onClick={fetchPosts} className="text-blue-500 border border-blue-200 px-4 py-2 rounded-xl text-sm">
+              Retry
+            </button>
           </div>
         ) : posts.length === 0 ? (
           <div className="flex items-center justify-center py-24">
             <p className="text-gray-400 text-sm">No posts yet</p>
           </div>
         ) : (
-          <div className="w-full max-w-md mx-auto">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} currentUser={currentUser} />
-            ))}
-          </div>
-        )}
-
-        {/* ─── 🚀 FIXED LOCATION: CUSTOM PERSISTENT NOTIFICATION OVERLAY ─── */}
-        {showNotificationPopup && (
-          <div className="fixed bottom-20 left-4 right-4 z-50 max-w-sm mx-auto bg-white text-slate-900 rounded-2xl p-4 shadow-2xl border border-slate-100 flex items-start gap-3 animate-slide-up">
-            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Bell size={20} className="stroke-[2.5]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">Enable Chat Notifications</h4>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-normal">Get instant push updates when a classmate sends you a message in the chat portal room!</p>
-              <div className="flex items-center gap-3 mt-3">
-                <button onClick={handleRequestPermission} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-wider rounded-lg shadow-sm active:scale-95 transition">Allow</button>
-                <button onClick={handleDismissNotification} className="text-[11px] font-bold text-slate-400 hover:text-slate-600 px-2 py-1">Maybe Later</button>
-              </div>
-            </div>
-            <button onClick={handleDismissNotification} className="text-slate-400 hover:text-slate-600 transition p-0.5"><X size={14} /></button>
-          </div>
+          posts.map((post) => (
+            <PostCard key={post.id} post={post} currentUser={currentUser} onDeleted={handleDeleted} />
+          ))
         )}
       </div>
     </>
   );
-}          
+}
