@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Square, Play, Pause } from "lucide-react";
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -196,6 +196,28 @@ export default function Chat() {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
   const [replyTo, setReplyTo] = useState(null); // { id, username, message }
+  const [attachOpen, setAttachOpen] = useState(false);
+
+  // Photo upload
+  const [pendingPhoto, setPendingPhoto] = useState(null); // { file, previewUrl }
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef();
+
+  // Voice recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [waveLevels, setWaveLevels] = useState(Array(24).fill(4));
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordTimerRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const analyserRef = useRef(null);
+  const rafRef = useRef(null);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+
+  // Playback of voice messages in chat
+  const [playingId, setPlayingId] = useState(null);
+  const audioElRef = useRef(null);
 
   const bottomRef = useRef();
   const inputRef = useRef();
@@ -251,12 +273,52 @@ export default function Chat() {
   const fetchMessages = async () => {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id, username, message, edited, reply_to")
+      .select("id, username, message, edited, reply_to, media_url, voice_url, type, created_at")
       .eq("batch_id", batchId)
       .order("created_at", { ascending: true })
       .limit(100);
     setMessages(data || []);
   };
+
+  // — AUTO-DELETE media older than 10 hours (storage files + db rows) —
+  const cleanupOldMedia = async () => {
+    if (!batchId) return;
+    const cutoff = new Date(Date.now() - HOURS * 3600 * 1000).toISOString();
+
+    const { data: stale } = await supabase
+      .from("chat_messages")
+      .select("id, type, media_url, voice_url")
+      .eq("batch_id", batchId)
+      .lt("created_at", cutoff)
+      .in("type", ["image", "voice"]);
+
+    if (!stale?.length) return;
+
+    for (const row of stale) {
+      try {
+        if (row.type === "image" && row.media_url) {
+          const path = row.media_url.split("/chat-images/")[1];
+          if (path) await supabase.storage.from("chat-images").remove([path]);
+        }
+        if (row.type === "voice" && row.voice_url) {
+          const path = row.voice_url.split("/chat-voices/")[1];
+          if (path) await supabase.storage.from("chat-voices").remove([path]);
+        }
+      } catch (err) {
+        console.error("Cleanup storage delete failed:", err);
+      }
+    }
+
+    const ids = stale.map((r) => r.id);
+    await supabase.from("chat_messages").delete().in("id", ids);
+  };
+
+  useEffect(() => {
+    if (!batchId) return;
+    cleanupOldMedia();
+    const interval = setInterval(cleanupOldMedia, 30 * 60 * 1000); // every 30 min
+    return () => clearInterval(interval);
+  }, [batchId]);
 
   // Helper: find quoted message by id
   const getQuoted = (replyToId) => messages.find((m) => m.id === replyToId);
@@ -277,6 +339,209 @@ export default function Chat() {
     setText("");
     setReplyTo(null);
     setSending(false);
+    if (inputRef.current) inputRef.current.style.height = "auto";
+  };
+
+  // — PHOTO: pick from gallery —
+  const openGallery = () => {
+    setAttachOpen(false);
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setPendingPhoto({ file, previewUrl });
+    e.target.value = ""; // allow re-selecting same file later
+  };
+
+  const cancelPhoto = () => {
+    if (pendingPhoto?.previewUrl) URL.revokeObjectURL(pendingPhoto.previewUrl);
+    setPendingPhoto(null);
+  };
+
+  const sendPhoto = async () => {
+    if (!pendingPhoto || uploadingPhoto) return;
+    setUploadingPhoto(true);
+    try {
+      const ext = pendingPhoto.file.name.split(".").pop() || "jpg";
+      const path = `${batchId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("chat-images")
+        .upload(path, pendingPhoto.file, { contentType: pendingPhoto.file.type });
+
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
+
+      await supabase.from("chat_messages").insert({
+        message: "",
+        username,
+        batch_id: batchId,
+        user_id: currentUser?.id || null,
+        type: "image",
+        media_url: urlData.publicUrl,
+        reply_to: replyTo?.id || null,
+      });
+
+      setReplyTo(null);
+      cancelPhoto();
+    } catch (err) {
+      console.error("Photo send failed:", err);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // — VOICE: record on hold —
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRecordSeconds(0);
+
+      recordTimerRef.current = setInterval(() => {
+        setRecordSeconds((s) => s + 1);
+      }, 1000);
+
+      // Waveform visualizer via AnalyserNode
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      analyserRef.current = { analyser, audioCtx };
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const levels = Array.from({ length: 24 }, (_, i) => {
+          const v = dataArray[i % dataArray.length] || 0;
+          return Math.max(4, Math.min(28, (v / 255) * 28));
+        });
+        setWaveLevels(levels);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (err) {
+      console.error("Mic permission denied or failed:", err);
+    }
+  };
+
+  const cleanupRecording = () => {
+    clearInterval(recordTimerRef.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+    }
+    if (analyserRef.current?.audioCtx) {
+      analyserRef.current.audioCtx.close();
+      analyserRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordSeconds(0);
+    setWaveLevels(Array(24).fill(4));
+  };
+
+  // Stop recording, returns a Blob via promise
+  const stopRecordingAndGetBlob = () =>
+    new Promise((resolve) => {
+      const recorder = mediaRecorderRef.current;
+      if (!recorder) { resolve(null); return; }
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        resolve(blob);
+      };
+      recorder.stop();
+    });
+
+  // Cancel recording — user left/aborted, don't send
+  const cancelRecording = async () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      await stopRecordingAndGetBlob();
+    }
+    cleanupRecording();
+  };
+
+  // Stop + upload + send
+  const finishAndSendRecording = async () => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") {
+      cleanupRecording();
+      return;
+    }
+    const blob = await stopRecordingAndGetBlob();
+    cleanupRecording();
+    if (!blob || blob.size === 0) return;
+
+    setUploadingVoice(true);
+    try {
+      const path = `${batchId}/${Date.now()}_${Math.random().toString(36).slice(2)}.webm`;
+      const { error: upErr } = await supabase.storage
+        .from("chat-voices")
+        .upload(path, blob, { contentType: "audio/webm" });
+
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from("chat-voices").getPublicUrl(path);
+
+      await supabase.from("chat_messages").insert({
+        message: "",
+        username,
+        batch_id: batchId,
+        user_id: currentUser?.id || null,
+        type: "voice",
+        voice_url: urlData.publicUrl,
+        reply_to: replyTo?.id || null,
+      });
+
+      setReplyTo(null);
+    } catch (err) {
+      console.error("Voice send failed:", err);
+    } finally {
+      setUploadingVoice(false);
+    }
+  };
+
+  // Stop recording if user navigates away mid-recording
+  useEffect(() => {
+    return () => {
+      if (isRecording) cancelRecording();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const formatRecTime = (s) => {
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const r = (s % 60).toString().padStart(2, "0");
+    return `${m}:${r}`;
+  };
+
+  const togglePlay = (msgId, url) => {
+    if (playingId === msgId) {
+      audioElRef.current?.pause();
+      setPlayingId(null);
+      return;
+    }
+    if (audioElRef.current) audioElRef.current.pause();
+    const audio = new Audio(url);
+    audioElRef.current = audio;
+    audio.play();
+    setPlayingId(msgId);
+    audio.onended = () => setPlayingId(null);
   };
 
   //  EDIT 
@@ -303,7 +568,7 @@ export default function Chat() {
   //  DELETE 
   const deleteMsg = async (id) => {
     setOpenMenuId(null);
-    if (!window.confirm("Delete this message? This can't be undone.")) return;
+   if (!window.confirm("Delete this message? This can't be undone.")) return;
     await supabase.from("chat_messages").delete().eq("id", id);
   };
 
@@ -372,11 +637,15 @@ export default function Chat() {
                         {menuOpen && (
                           <div ref={menuRef}
                             className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden z-50 min-w-[120px]">
-                            <button onClick={() => startEdit(msg)}
-                              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 transition">
-                              <Pencil size={13} className="text-blue-400" /> Edit
-                            </button>
-                            <div className="h-px bg-slate-700" />
+                            {msg.type !== "image" && msg.type !== "voice" && (
+                              <>
+                                <button onClick={() => startEdit(msg)}
+                                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 transition">
+                                  <Pencil size={13} className="text-blue-400" /> Edit
+                                </button>
+                                <div className="h-px bg-slate-700" />
+                              </>
+                            )}
                             <button onClick={() => deleteMsg(msg.id)}
                               className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-slate-700 transition">
                               <Trash2 size={13} /> Delete
@@ -407,7 +676,7 @@ export default function Chat() {
                         </div>
                       )}
 
-                      {/* EDIT / NORMAL BUBBLE */}
+                      {/* EDIT / IMAGE / VOICE / TEXT BUBBLE */}
                       {isEditing ? (
                         <div className="w-full max-w-[260px] bg-[#1e293b] border border-blue-500/50 rounded-3xl px-3 py-2.5 flex items-center gap-2">
                           <input autoFocus value={editText} onChange={(e) => setEditText(e.target.value)}
@@ -416,6 +685,36 @@ export default function Chat() {
                           <button onClick={() => saveEdit(msg.id)} className="text-emerald-400 hover:text-emerald-300 active:scale-90 transition p-0.5 flex-shrink-0"><Check size={15} /></button>
                           <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-300 active:scale-90 transition p-0.5 flex-shrink-0"><X size={15} /></button>
                         </div>
+                      ) : msg.type === "image" && msg.media_url ? (
+                        <div className={`rounded-3xl overflow-hidden border max-w-[220px] ${isMe ? "border-blue-500/30" : "border-slate-800/40"}`}>
+                          <img
+                            src={msg.media_url}
+                            alt=""
+                            className="w-full h-auto block"
+                            onClick={() => window.open(msg.media_url, "_blank")}
+                          />
+                        </div>
+                      ) : msg.type === "voice" && msg.voice_url ? (
+                        <button
+                          onClick={() => togglePlay(msg.id, msg.voice_url)}
+                          className={`flex items-center gap-3 px-4 py-3 rounded-3xl shadow-sm min-w-[180px] transition ${isMe ? "text-white" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"}`}
+                          style={isMe ? { background: "linear-gradient(135deg, #2563eb, #0284c7)" } : {}}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isMe ? "bg-white/20" : "bg-blue-500/20"}`}>
+                            {playingId === msg.id ? <Pause size={14} /> : <Play size={14} />}
+                          </div>
+                          {/* static waveform bars look */}
+                          <div className="flex items-center gap-0.5 flex-1">
+                            {Array.from({ length: 18 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className={`w-0.5 rounded-full ${isMe ? "bg-white/60" : "bg-slate-500"}`}
+                                style={{ height: 6 + ((i * 37) % 14) }}
+                              />
+                            ))}
+                          </div>
+                          <Mic size={13} className={isMe ? "text-white/70" : "text-slate-500"} />
+                        </button>
                       ) : (
                         <div
                           className={`px-4 py-2.5 rounded-3xl text-sm leading-relaxed shadow-sm break-words ${isMe ? "text-white font-medium" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"}`}
@@ -450,20 +749,189 @@ export default function Chat() {
       )}
 
 {/* FOOTER */}
-      <div className="flex-shrink-0 border-t border-slate-900/60 px-3 py-3 flex items-center gap-2 bg-[#090d16] z-10"
+      <div className="flex-shrink-0 border-t border-slate-900/60 px-3 py-3 bg-[#090d16] z-10"
         style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-        <div className="flex-1 flex items-center bg-[#0f172a] border border-slate-800 rounded-2xl px-4 py-2.5 gap-2 focus-within:border-blue-500/50 transition min-w-0">
-          <input ref={inputRef} value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder={username ? `message as @${username}...` : "Type a message..."}
-            className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0" />
-        </div>
-        <button onClick={send} disabled={!text.trim() || sending}
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}>
-          <Send size={16} />
-        </button>
+
+        {/* Hidden file input for gallery picker */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoSelected}
+          className="hidden"
+        />
+
+        {/* PHOTO PREVIEW — confirm before sending */}
+        {pendingPhoto && (
+          <div className="flex items-center gap-3 mb-2.5 bg-[#0f172a] border border-slate-800 rounded-2xl p-2.5">
+            <img src={pendingPhoto.previewUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-200">Send this photo?</p>
+              <p className="text-[11px] text-slate-500">{username}</p>
+            </div>
+            <button
+              onClick={cancelPhoto}
+              disabled={uploadingPhoto}
+              className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 active:scale-90 transition flex-shrink-0"
+            >
+              <X size={15} />
+            </button>
+            <button
+              onClick={sendPhoto}
+              disabled={uploadingPhoto}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white active:scale-90 transition disabled:opacity-40 flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
+            >
+              {uploadingPhoto ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Send size={14} />
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Attachment row — shows above input when + is tapped */}
+        {attachOpen && !isRecording && !pendingPhoto && (
+          <div className="flex items-center gap-3 mb-2.5 px-1 animate-in fade-in duration-150">
+            <button
+              onClick={openGallery}
+              className="flex flex-col items-center gap-1 active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+                <Image size={18} className="text-emerald-400" />
+              </div>
+              <span className="text-[10px] text-slate-500 font-semibold">Photo</span>
+            </button>
+
+            <button
+              onClick={() => setAttachOpen(false)}
+              className="flex flex-col items-center gap-1 active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center">
+                <Mic size={18} className="text-rose-400" />
+              </div>
+              <span className="text-[10px] text-slate-500 font-semibold">Voice</span>
+            </button>
+
+            <button
+              onClick={() => { /* TODO: connect gif picker */ setAttachOpen(false); }}
+              className="flex flex-col items-center gap-1 active:scale-90 transition"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
+                <span className="text-[10px] font-black text-violet-400">GIF</span>
+              </div>
+              <span className="text-[10px] text-slate-500 font-semibold">Gifs</span>
+            </button>
+          </div>
+        )}
+
+        {/* INPUT ROW — replaced by recording wave UI when isRecording */}
+        {!pendingPhoto && (
+          <div className="flex items-center gap-2 w-full">
+            {isRecording ? (
+              /* — RECORDING WAVE BAR replaces input — matches own bubble gradient — */
+              <div
+                className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-2.5"
+                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
+              >
+                <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0" />
+                <span className="text-white text-xs font-bold flex-shrink-0 tabular-nums">
+                  {formatRecTime(recordSeconds)}
+                </span>
+                {/* live waveform */}
+                <div className="flex items-center gap-[2px] flex-1 h-7 overflow-hidden">
+                  {waveLevels.map((h, i) => (
+                    <div
+                      key={i}
+                      className="w-1 rounded-full bg-white/80 flex-shrink-0 transition-all duration-75"
+                      style={{ height: `${h}px` }}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={cancelRecording}
+                  className="text-white/70 hover:text-white active:scale-90 transition flex-shrink-0"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-end bg-[#0f172a] border border-slate-800 rounded-2xl pl-4 pr-2 py-2 gap-2 focus-within:border-blue-500/50 transition min-w-0">
+                <textarea
+                  ref={inputRef}
+                  value={text}
+                  rows={1}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                  }}
+                  onFocus={() => setAttachOpen(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  placeholder={username ? `message as @${username}...` : "Type a message..."}
+                  className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0 resize-none leading-relaxed py-1"
+                  style={{ maxHeight: 120 }}
+                />
+
+                {!attachOpen && text.trim() === "" && (
+                  <button
+                    onClick={() => { setAttachOpen(true); inputRef.current?.blur(); }}
+                    className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 active:scale-90 transition"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+                {attachOpen && (
+                  <button
+                    onClick={() => setAttachOpen(false)}
+                    className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 active:scale-90 transition"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Right button: Send (text) OR Mic (hold to record) OR Send (finish recording) */}
+            {isRecording ? (
+              <button
+                onClick={finishAndSendRecording}
+                disabled={uploadingVoice}
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0 disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
+              >
+                {uploadingVoice ? (
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Send size={16} />
+                )}
+              </button>
+            ) : text.trim() ? (
+              <button onClick={send} disabled={sending}
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
+                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}>
+                <Send size={16} />
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => { e.preventDefault(); startRecording(); }}
+                onPointerUp={finishAndSendRecording}
+                onPointerLeave={() => { if (isRecording) cancelRecording(); }}
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0 select-none"
+                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)", touchAction: "none" }}
+              >
+                <Mic size={17} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
     </div>
