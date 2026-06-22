@@ -518,16 +518,12 @@ export default function Chat() {
   };
 
   // Stop recording if user navigates away mid-recording
-useEffect(() => {
-  if (!isRecording) return;
-  const stop = () => finishAndSendRecording();
-  document.addEventListener("touchend", stop);
-  document.addEventListener("mouseup", stop);
-  return () => {
-    document.removeEventListener("touchend", stop);
-    document.removeEventListener("mouseup", stop);
-  };
-}, [isRecording]);	
+  useEffect(() => {
+    return () => {
+      if (isRecording) cancelRecording();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const formatRecTime = (s) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
@@ -568,9 +564,8 @@ useEffect(() => {
     setEditingId(null);
     setEditText("");
   };
-    const cancelEdit = () => { setEditingId(null); setEditText(""); };
-
-  //  DELETE 
+  const cancelEdit = () => { setEditingId(null); setEditText(""); };
+    //  DELETE 
   const deleteMsg = async (id) => {
     setOpenMenuId(null);
     if (!window.confirm("Delete this message? This can't be undone.")) return;
@@ -825,26 +820,42 @@ useEffect(() => {
         {!pendingPhoto && (
           isRecording ? (
             /* — RECORDING WAVE BAR replaces whole input row — */
-            <div
-              className="flex items-center gap-3 rounded-2xl px-4 py-3 w-full select-none"
-              style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
-            >
-              <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0" />
-              <span className="text-white text-xs font-bold flex-shrink-0 tabular-nums">
-                {formatRecTime(recordSeconds)}
-              </span>
-              <div className="flex items-center gap-[2px] flex-1 h-7 overflow-hidden">
-                {waveLevels.map((h, i) => (
-                  <div
-                    key={i}
-                    className="w-1 rounded-full bg-white/80 flex-shrink-0 transition-all duration-75"
-                    style={{ height: `${h}px` }}
-                  />
-                ))}
+            <div className="flex items-center gap-2 w-full">
+              <div
+                className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-3 select-none"
+                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
+              >
+                <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0" />
+                <span className="text-white text-xs font-bold flex-shrink-0 tabular-nums">
+                  {formatRecTime(recordSeconds)}
+                </span>
+                <div className="flex items-center gap-[2px] flex-1 h-7 overflow-hidden">
+                  {waveLevels.map((h, i) => (
+                    <div
+                      key={i}
+                      className="w-1 rounded-full bg-white/80 flex-shrink-0 transition-all duration-75"
+                      style={{ height: `${h}px` }}
+                    />
+                  ))}
+                </div>
+                <button onClick={cancelRecording} className="text-white/70 hover:text-white active:scale-90 transition flex-shrink-0">
+                  <Trash2 size={15} />
+                </button>
               </div>
-              <span className="text-white/70 text-[11px] font-medium flex-shrink-0">
-                release to send
-              </span>
+
+              {/* Tap this to stop + send */}
+              <button
+                onClick={finishAndSendRecording}
+                disabled={uploadingVoice}
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0 disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
+              >
+                {uploadingVoice ? (
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Send size={16} />
+                )}
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2 w-full">
@@ -890,7 +901,7 @@ useEffect(() => {
                 />
               </div>
 
-              {/* Right button: Send (typing) OR Mic (hold to record) */}
+              {/* Right button: Send (typing) OR Mic (tap to start) OR Send (tap to stop+send) */}
               {text.trim() ? (
                 <button onClick={send} disabled={sending}
                   className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
@@ -899,15 +910,9 @@ useEffect(() => {
                 </button>
               ) : (
                 <button
-                  onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-                  onTouchEnd={(e) => { e.preventDefault(); finishAndSendRecording(); }}
-                  onTouchCancel={(e) => { e.preventDefault(); cancelRecording(); }}
-                  onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
-                  onMouseUp={(e) => { e.preventDefault(); finishAndSendRecording(); }}
-                  onMouseLeave={() => { if (isRecording) cancelRecording(); }}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0 select-none"
-                  style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)", touchAction: "none", WebkitUserSelect: "none" }}
+                  onClick={startRecording}
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
                 >
                   <Mic size={17} />
                 </button>
