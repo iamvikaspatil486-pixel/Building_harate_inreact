@@ -518,12 +518,16 @@ export default function Chat() {
   };
 
   // Stop recording if user navigates away mid-recording
-  useEffect(() => {
-    return () => {
-      if (isRecording) cancelRecording();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+useEffect(() => {
+  if (!isRecording) return;
+  const stop = () => finishAndSendRecording();
+  document.addEventListener("touchend", stop);
+  document.addEventListener("mouseup", stop);
+  return () => {
+    document.removeEventListener("touchend", stop);
+    document.removeEventListener("mouseup", stop);
+  };
+}, [isRecording]);	
 
   const formatRecTime = (s) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
