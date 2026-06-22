@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Square, Play, Pause } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause } from "lucide-react";
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -214,15 +214,6 @@ export default function Chat() {
   const analyserRef = useRef(null);
   const rafRef = useRef(null);
   const [uploadingVoice, setUploadingVoice] = useState(false);
-  const [recordedBlobReady, setRecordedBlobReady] = useState(false);
-  const [finalRecordSeconds, setFinalRecordSeconds] = useState(0);
-  const recordedBlobRef = useRef(null);
-
-  // Slide-to-arm voice recording
-  const [micArmed, setMicArmed] = useState(false); // shows >>>> arrows, waiting for drag
-  const [armDragX, setArmDragX] = useState(0);
-  const armStartX = useRef(null);
-  const ARM_THRESHOLD = 70; // px to drag right to actually start recording
 
   // Playback of voice messages in chat
   const [playingId, setPlayingId] = useState(null);
@@ -487,7 +478,7 @@ export default function Chat() {
     cleanupRecording();
   };
 
-  // Stop + upload + send (legacy hold-release path, kept for safety)
+  // Stop + upload + send — fires on release of hold
   const finishAndSendRecording = async () => {
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") {
       cleanupRecording();
@@ -496,25 +487,7 @@ export default function Chat() {
     const blob = await stopRecordingAndGetBlob();
     cleanupRecording();
     if (!blob || blob.size === 0) return;
-    await uploadVoiceBlob(blob);
-  };
 
-  // Tap the • stop button — stop recording but DON'T auto-send, show Send button instead
-  const stopRecordingOnly = async () => {
-    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") {
-      cleanupRecording();
-      return;
-    }
-    setFinalRecordSeconds(recordSeconds);
-    const blob = await stopRecordingAndGetBlob();
-    cleanupRecording();
-    if (!blob || blob.size === 0) return;
-    recordedBlobRef.current = blob;
-    setRecordedBlobReady(true);
-  };
-
-  // Shared upload logic
-  const uploadVoiceBlob = async (blob) => {
     setUploadingVoice(true);
     try {
       const path = `${batchId}/${Date.now()}_${Math.random().toString(36).slice(2)}.webm`;
@@ -544,23 +517,6 @@ export default function Chat() {
     }
   };
 
-  // Send button after tapping stop dot — uploads the held blob
-  const uploadAndSendRecordedVoice = async () => {
-    const blob = recordedBlobRef.current;
-    if (!blob) return;
-    await uploadVoiceBlob(blob);
-    recordedBlobRef.current = null;
-    setRecordedBlobReady(false);
-    setFinalRecordSeconds(0);
-  };
-
-  // Cancel the recorded-but-not-sent voice note
-  const discardRecordedVoice = () => {
-    recordedBlobRef.current = null;
-    setRecordedBlobReady(false);
-    setFinalRecordSeconds(0);
-  };
-
   // Stop recording if user navigates away mid-recording
   useEffect(() => {
     return () => {
@@ -573,43 +529,6 @@ export default function Chat() {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const r = (s % 60).toString().padStart(2, "0");
     return `${m}:${r}`;
-  };
-
-  // — SLIDE TO ARM: tap mic shows arrows, drag right past threshold starts recording —
-  const handleMicTap = () => {
-    if (micArmed || isRecording) return;
-    setMicArmed(true);
-    setAttachOpen(false);
-  };
-
-  const handleArmTouchStart = (e) => {
-    armStartX.current = e.touches ? e.touches[0].clientX : e.clientX;
-  };
-
-  const handleArmTouchMove = (e) => {
-    if (armStartX.current === null) return;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const dx = clientX - armStartX.current;
-    if (dx > 0) {
-      setArmDragX(Math.min(dx, ARM_THRESHOLD + 20));
-      if (dx >= ARM_THRESHOLD) {
-        armStartX.current = null;
-        setArmDragX(0);
-        setMicArmed(false);
-        startRecording();
-      }
-    }
-  };
-
-  const handleArmTouchEnd = () => {
-    armStartX.current = null;
-    setArmDragX(0);
-  };
-
-  const cancelArm = () => {
-    setMicArmed(false);
-    setArmDragX(0);
-    armStartX.current = null;
   };
 
   const togglePlay = (msgId, url) => {
@@ -645,7 +564,7 @@ export default function Chat() {
     setEditingId(null);
     setEditText("");
   };
-  const cancelEdit = () => { setEditingId(null); setEditText(""); };
+    const cancelEdit = () => { setEditingId(null); setEditText(""); };
 
   //  DELETE 
   const deleteMsg = async (id) => {
@@ -874,7 +793,7 @@ export default function Chat() {
         )}
 
         {/* Attachment row — shows above input when + is tapped */}
-        {attachOpen && !isRecording && !micArmed && !recordedBlobReady && !pendingPhoto && (
+        {attachOpen && !isRecording && !pendingPhoto && (
           <div className="flex items-center gap-3 mb-2.5 px-1 animate-in fade-in duration-150">
             <button
               onClick={openGallery}
@@ -884,16 +803,6 @@ export default function Chat() {
                 <Image size={18} className="text-emerald-400" />
               </div>
               <span className="text-[10px] text-slate-500 font-semibold">Photo</span>
-            </button>
-
-            <button
-              onClick={() => setAttachOpen(false)}
-              className="flex flex-col items-center gap-1 active:scale-90 transition"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center">
-                <Mic size={18} className="text-rose-400" />
-              </div>
-              <span className="text-[10px] text-slate-500 font-semibold">Voice</span>
             </button>
 
             <button
@@ -908,89 +817,53 @@ export default function Chat() {
           </div>
         )}
 
-        {/* INPUT ROW — replaced by arm-arrows, recording wave, or recorded-ready bar */}
+        {/* INPUT ROW — entire row replaced by waveform bar while recording */}
         {!pendingPhoto && (
-          <div className="flex items-center gap-2 w-full">
-            {recordedBlobReady ? (
-              /* — RECORDED, READY TO SEND — */
-              <div
-                className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-2.5 border border-blue-500/30"
-                style={{ background: "#0f172a" }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
-                <span className="text-slate-300 text-xs font-bold flex-shrink-0 tabular-nums">
-                  {formatRecTime(finalRecordSeconds)}
-                </span>
-                <span className="text-slate-500 text-xs flex-1">Voice note ready</span>
-                <button
-                  onClick={discardRecordedVoice}
-                  className="text-slate-500 hover:text-red-400 active:scale-90 transition flex-shrink-0"
-                >
-                  <Trash2 size={16} />
-                </button>
+          isRecording ? (
+            /* — RECORDING WAVE BAR replaces whole input row — */
+            <div
+              className="flex items-center gap-3 rounded-2xl px-4 py-3 w-full select-none"
+              style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0" />
+              <span className="text-white text-xs font-bold flex-shrink-0 tabular-nums">
+                {formatRecTime(recordSeconds)}
+              </span>
+              <div className="flex items-center gap-[2px] flex-1 h-7 overflow-hidden">
+                {waveLevels.map((h, i) => (
+                  <div
+                    key={i}
+                    className="w-1 rounded-full bg-white/80 flex-shrink-0 transition-all duration-75"
+                    style={{ height: `${h}px` }}
+                  />
+                ))}
               </div>
-            ) : isRecording ? (
-              /* — RECORDING WAVE BAR — matches own bubble gradient — */
-              <div
-                className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-2.5"
-                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0" />
-                <span className="text-white text-xs font-bold flex-shrink-0 tabular-nums">
-                  {formatRecTime(recordSeconds)}
-                </span>
-                <div className="flex items-center gap-[2px] flex-1 h-7 overflow-hidden">
-                  {waveLevels.map((h, i) => (
-                    <div
-                      key={i}
-                      className="w-1 rounded-full bg-white/80 flex-shrink-0 transition-all duration-75"
-                      style={{ height: `${h}px` }}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={cancelRecording}
-                  className="text-white/70 hover:text-white active:scale-90 transition flex-shrink-0"
-                >
-                  <Trash2 size={16} />
-                </button>
-                {/* Stop dot — tap to stop recording, then Send appears */}
-                <button
-                  onClick={stopRecordingOnly}
-                  className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 active:scale-90 transition"
-                >
-                  <div className="w-3 h-3 rounded-full bg-blue-600" />
-                </button>
-              </div>
-            ) : micArmed ? (
-              /* — ARM STAGE: slide-right arrows, GIF/photo hidden, drag to start — */
-              <div
-                onTouchStart={handleArmTouchStart}
-              onTouchMove={handleArmTouchMove}
-                onTouchEnd={handleArmTouchEnd}
-                onMouseDown={handleArmTouchStart}
-                onMouseMove={(e) => { if (armStartX.current !== null) handleArmTouchMove(e); }}
-                onMouseUp={handleArmTouchEnd}
-                className="flex-1 flex items-center justify-between bg-[#0f172a] border border-blue-500/40 rounded-2xl pl-4 pr-3 py-3 gap-2 select-none"
-                style={{ touchAction: "none" }}
-              >
-                <button onClick={cancelArm} className="text-slate-500 active:scale-90 transition flex-shrink-0">
-                  <X size={16} />
-                </button>
-                <span className="text-slate-400 text-xs font-semibold flex-1 text-center">
-                  slide to record
-                </span>
-                <div
-                  className="flex items-center gap-0.5 flex-shrink-0 transition-transform"
-                  style={{ transform: `translateX(${armDragX}px)` }}
-                >
-                  {[0, 1, 2].map((i) => (
-                    <ChevronRightIcon key={i} delay={i * 0.15} />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-end bg-[#0f172a] border border-slate-800 rounded-2xl pl-4 pr-2 py-2 gap-2 focus-within:border-blue-500/50 transition min-w-0">
+              <span className="text-white/70 text-[11px] font-medium flex-shrink-0">
+                release to send
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 w-full">
+              <div className="flex-1 flex items-end bg-[#0f172a] border border-slate-800 rounded-2xl pl-2 pr-2 py-2 gap-2 focus-within:border-blue-500/50 transition min-w-0">
+
+                {/* + icon, left side */}
+                {!attachOpen && text.trim() === "" && (
+                  <button
+                    onClick={() => setAttachOpen(true)}
+                    className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 active:scale-90 transition self-end"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+                {attachOpen && (
+                  <button
+                    onClick={() => setAttachOpen(false)}
+                    className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 active:scale-90 transition self-end"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+
                 <textarea
                   ref={inputRef}
                   value={text}
@@ -1008,82 +881,38 @@ export default function Chat() {
                     }
                   }}
                   placeholder={username ? `message as @${username}...` : "Type a message..."}
-                  className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0 resize-none leading-relaxed py-1"
+                  className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-700 outline-none w-full min-w-0 resize-none leading-relaxed py-1.5"
                   style={{ maxHeight: 120 }}
                 />
-
-                {!attachOpen && text.trim() === "" && (
-                  <button
-                    onClick={() => { setAttachOpen(true); inputRef.current?.blur(); }}
-                    className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 active:scale-90 transition"
-                  >
-                    <Plus size={16} />
-                  </button>
-                )}
-                {attachOpen && (
-                  <button
-                    onClick={() => setAttachOpen(false)}
-                    className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 active:scale-90 transition"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
               </div>
-            )}
 
-            {/* Right button: Send (text) OR Send (voice recorded, ready) OR Mic (idle/armed) */}
-            {recordedBlobReady ? (
-              <button
-                onClick={uploadAndSendRecordedVoice}
-                disabled={uploadingVoice}
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0 disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
-              >
-                {uploadingVoice ? (
-                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                ) : (
+              {/* Right button: Send (typing) OR Mic (hold to record) */}
+              {text.trim() ? (
+                <button onClick={send} disabled={sending}
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}>
                   <Send size={16} />
-                )}
-              </button>
-            ) : text.trim() ? (
-              <button onClick={send} disabled={sending}
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-20 active:scale-90 transition flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}>
-                <Send size={16} />
-              </button>
-            ) : !isRecording && !micArmed ? (
-              <button
-                onClick={handleMicTap}
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)" }}
-              >
-                <Mic size={17} />
-              </button>
-            ) : null}
-          </div>
+                </button>
+              ) : (
+                <button
+                  onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                  onTouchEnd={(e) => { e.preventDefault(); finishAndSendRecording(); }}
+                  onTouchCancel={(e) => { e.preventDefault(); cancelRecording(); }}
+                  onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
+                  onMouseUp={(e) => { e.preventDefault(); finishAndSendRecording(); }}
+                  onMouseLeave={() => { if (isRecording) cancelRecording(); }}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-white active:scale-90 transition flex-shrink-0 select-none"
+                  style={{ background: "linear-gradient(135deg, #2563eb, #0284c7)", touchAction: "none", WebkitUserSelect: "none" }}
+                >
+                  <Mic size={17} />
+                </button>
+              )}
+            </div>
+          )
         )}
       </div>
 
     </div>
-  );
-}
-
-// Small chevron icon with staggered pulse animation for "slide to record" hint
-function ChevronRightIcon({ delay = 0 }) {
-  return (
-    <span
-      className="text-blue-400"
-      style={{
-        animation: `slideHint 1.2s ease-in-out ${delay}s infinite`,
-      }}
-    >
-      <ChevronRight size={16} />
-      <style>{`
-        @keyframes slideHint {
-          0%, 100% { opacity: 0.3; transform: translateX(0); }
-          50% { opacity: 1; transform: translateX(4px); }
-        }
-      `}</style>
-    </span>
   );
 }
