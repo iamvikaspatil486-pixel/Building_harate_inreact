@@ -465,7 +465,7 @@ export default function Huduku() {
 
         {/* Header */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
-          <p className="font-bold text-gray-900 text-base mb-2">🔍 Huduku</p>
+          <p className="font-bold text-gray-900 text-base mb-2">🔍 Huduki</p>
 
           {/* Search bar */}
           <div className="flex items-center bg-gray-100 rounded-full px-4 py-2.5 gap-2">

@@ -5,7 +5,7 @@ import { Home, PlusSquare, MessageCircle, Menu, Search, UserCircle } from "lucid
 const tabs = [
   { icon: Home,          label: "Home",  path: "/home"   },
   { icon: PlusSquare,    label: "Post",  path: "/add-post" },
-     { icon: Search,        label: "Huduku",  path: "/huduku"   },
+     { icon: Search,        label: "Huduki",  path: "/huduku"   },
   { icon: MessageCircle, label: "Chat",  path: "/chat"   },
  {icon: UserCircle, label:"profile", path: "/profile"},
 ];
