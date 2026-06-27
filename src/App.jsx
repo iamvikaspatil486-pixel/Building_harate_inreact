@@ -4,11 +4,14 @@ import { supabase } from './lib/supabase';
 import Index from './components/Index'; 
 import Login from './components/Login';
 import Register from './components/Register';
+import CreateBatch from './components/create-batch';
 import Home from './pages/home';
 import AddPost from './pages/add-post';
 import Chat from './pages/chat';
 import Profile from './pages/profile';
 import Navigation from './components/navigation';
+import Huduku from './pages/Huduku'
+import ResourceDetail from './pages/ResourceDetail'
 import { ShieldAlert } from 'lucide-react';
 import OneSignal from 'react-onesignal'; // 🚀 Added OneSignal SDK Integration
 
@@ -97,13 +100,16 @@ function AppLayout({ session, setSession }) {
         <Route path="/" element={session ? <Navigate to="/home" replace /> : <Index />} />
         <Route path="/login" element={session ? <Navigate to="/home" replace /> : <Login />} />
         <Route path="/register" element={!session ? <Register /> : <Navigate to="/login" replace />} />
+      <Route path="/create-batch" element={!session ? <CreateBatch /> : <Navigate to="/login" replace />} />
 
         {/* ─── PROTECTED APPLICATION ROUTES ─── */}
         <Route path="/home" element={session ? <Home /> : <Navigate to="/" replace />} />
         <Route path="/chat" element={session ? <Chat /> : <Navigate to="/login" replace />} />
+        <Route path="/huduku" element={session ? <Huduku /> : <Navigate to="/" />} />
+<Route path="/resource/:id" element={session ? <ResourceDetail /> : <Navigate to="/" />} />
         <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/login" replace />} />
         <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" replace />} />     
-
+        
         {/* Catch-all global fallback */}
 <Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
       </Routes>
