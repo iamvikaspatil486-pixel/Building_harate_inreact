@@ -7,6 +7,7 @@ const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
 const EXAMPLES = ["truth_teller", "Batman", "princess", "night_viber"];
 const SWIPE_THRESHOLD = 60; // px to trigger reply
+const GIPHY_API_KEY = "4O3KmphtX0AmuqeXjq61mvOdzYJWe8gN";
 
 //  USERNAME POPUP 
 function UsernamePicker({ onDone, currentUsername, onCancel }) {
@@ -184,6 +185,120 @@ function SwipeableMessage({ msg, isMe, children, onReply }) {
   );
 }
 
+//  GIF SHEET — search bar + grid using Giphy API 
+function GifSheet({ onClose, onPick }) {
+  const [query, setQuery] = useState("");
+  const [gifs, setGifs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const inputRef = useRef();
+
+  useEffect(() => {
+    fetchTrending();
+    setTimeout(() => inputRef.current?.focus(), 300);
+  }, []);
+
+  const fetchTrending = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=24&rating=pg-13`
+      );
+      const json = await res.json();
+      setGifs(json.data || []);
+    } catch (err) {
+      console.error("Giphy trending fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runSearch = async (text) => {
+    if (!text.trim()) { fetchTrending(); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(text.trim())}&limit=24&rating=pg-13`
+      );
+      const json = await res.json();
+      setGifs(json.data || []);
+    } catch (err) {
+      console.error("Giphy search failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setQuery(val);
+    runSearch(val);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-end"
+      style={{ backdropFilter: "blur(2px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full bg-[#0f172a] rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto border-t border-slate-800"
+        style={{ maxHeight: "75vh", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-slate-700" />
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800">
+          <p className="font-bold text-slate-200 text-sm">Send a GIF</p>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-4 py-3">
+          <div className="flex items-center bg-slate-800 rounded-full px-4 py-2 gap-2">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={handleChange}
+              placeholder="Search GIFs..."
+              className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Grid */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-6 h-6 border-2 border-slate-700 border-t-violet-400 rounded-full animate-spin" />
+            </div>
+          ) : gifs.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-12">No GIFs found</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {gifs.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => onPick(g.images.fixed_width.url)}
+                  className="rounded-xl overflow-hidden bg-slate-800 active:scale-95 transition aspect-square"
+                >
+                  <img
+                    src={g.images.fixed_width_small.url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 //  MAIN CHAT COMPONENT 
 export default function Chat() {
   const navigate = useNavigate();
@@ -197,6 +312,7 @@ export default function Chat() {
   const [editText, setEditText] = useState("");
   const [replyTo, setReplyTo] = useState(null); // { id, username, message }
   const [attachOpen, setAttachOpen] = useState(false);
+  const [showGifSheet, setShowGifSheet] = useState(false);
 
   // Photo upload
   const [pendingPhoto, setPendingPhoto] = useState(null); // { file, previewUrl }
@@ -395,6 +511,25 @@ export default function Chat() {
     }
   };
 
+  // — GIF: send directly (no upload needed, Giphy hosts it) —
+  const sendGif = async (gifUrl) => {
+    setShowGifSheet(false);
+    try {
+      await supabase.from("chat_messages").insert({
+        message: "",
+        username,
+        batch_id: batchId,
+        user_id: currentUser?.id || null,
+        type: "gif",
+        media_url: gifUrl,
+        reply_to: replyTo?.id || null,
+      });
+      setReplyTo(null);
+    } catch (err) {
+      console.error("GIF send failed:", err);
+    }
+  };
+
   // — VOICE: record on hold —
   const startRecording = async () => {
     if (isRecording) return; // already recording, ignore duplicate triggers
@@ -565,7 +700,8 @@ export default function Chat() {
     setEditText("");
   };
   const cancelEdit = () => { setEditingId(null); setEditText(""); };
-    //  DELETE 
+
+  //  DELETE 
   const deleteMsg = async (id) => {
     setOpenMenuId(null);
     if (!window.confirm("Delete this message? This can't be undone.")) return;
@@ -637,7 +773,7 @@ export default function Chat() {
                         {menuOpen && (
                           <div ref={menuRef}
                             className="absolute top-full right-0 mt-1 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden z-50 min-w-[120px]">
-                            {msg.type !== "image" && msg.type !== "voice" && (
+                            {msg.type !== "image" && msg.type !== "voice" && msg.type !== "gif" && (
                               <>
                                 <button onClick={() => startEdit(msg)}
                                   className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-200 hover:bg-slate-700 transition">
@@ -685,7 +821,7 @@ export default function Chat() {
                           <button onClick={() => saveEdit(msg.id)} className="text-emerald-400 hover:text-emerald-300 active:scale-90 transition p-0.5 flex-shrink-0"><Check size={15} /></button>
                           <button onClick={cancelEdit} className="text-slate-500 hover:text-slate-300 active:scale-90 transition p-0.5 flex-shrink-0"><X size={15} /></button>
                         </div>
-                      ) : msg.type === "image" && msg.media_url ? (
+                      ) : (msg.type === "image" || msg.type === "gif") && msg.media_url ? (
                         <div className={`rounded-3xl overflow-hidden border max-w-[220px] ${isMe ? "border-blue-500/30" : "border-slate-800/40"}`}>
                           <img
                             src={msg.media_url}
@@ -805,7 +941,7 @@ export default function Chat() {
             </button>
 
             <button
-              onClick={() => { /* TODO: connect gif picker */ setAttachOpen(false); }}
+              onClick={() => { setShowGifSheet(true); setAttachOpen(false); }}
               className="flex flex-col items-center gap-1 active:scale-90 transition"
             >
               <div className="w-11 h-11 rounded-2xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
@@ -843,7 +979,7 @@ export default function Chat() {
                 </button>
               </div>
 
-              {/* Tap this to stop + send */}
+           {/* Tap this to stop + send */}
               <button
                 onClick={finishAndSendRecording}
                 disabled={uploadingVoice}
@@ -921,6 +1057,13 @@ export default function Chat() {
           )
         )}
       </div>
+
+      {showGifSheet && (
+        <GifSheet
+          onClose={() => setShowGifSheet(false)}
+          onPick={sendGif}
+        />
+      )}
 
     </div>
   );
