@@ -84,7 +84,7 @@ function UsernamePicker({ onDone, currentUsername, onCancel }) {
 }
 
 //  SWIPEABLE MESSAGE ROW 
-function SwipeableMessage({ msg, isMe, children, onReply }) {
+function SwipeableMessage({ msg, isMe, children, onReply, msgRef, highlighted }) {
   const [dragX, setDragX] = useState(0);
   const [swiping, setSwiping] = useState(false);
   const [triggered, setTriggered] = useState(false);
@@ -150,7 +150,11 @@ function SwipeableMessage({ msg, isMe, children, onReply }) {
   const replyIconScale = 0.6 + replyIconOpacity * 0.4;
 
   return (
-    <div className="relative">
+    <div
+      ref={msgRef}
+      className="relative rounded-2xl transition-colors duration-500"
+      style={{ backgroundColor: highlighted ? "rgba(56, 189, 248, 0.15)" : "transparent" }}
+    >
       {/* Reply icon revealed behind  clipped by its own wrapper */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
       <div
@@ -336,6 +340,8 @@ export default function Chat() {
   const audioElRef = useRef(null);
 
   const bottomRef = useRef();
+  const messageRefs = useRef({});
+  const [highlightedId, setHighlightedId] = useState(null);
   const inputRef = useRef();
   const menuRef = useRef();
 
@@ -439,6 +445,22 @@ export default function Chat() {
   // Helper: find quoted message by id
   const getQuoted = (replyToId) => messages.find((m) => m.id === replyToId);
 
+  const jumpToMessage = (msgId) => {
+    const el = messageRefs.current[msgId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(msgId);
+      setTimeout(() => setHighlightedId(null), 1500);
+    }
+  };
+
+  const jumpAndPlayVoice = (msg) => {
+    jumpToMessage(msg.id);
+    if (msg.voice_url) {
+      setTimeout(() => togglePlay(msg.id, msg.voice_url), 400);
+    }
+  };
+
   //  SEND 
   const send = async () => {
     if (!text.trim() || sending) return;
@@ -530,7 +552,7 @@ export default function Chat() {
     }
   };
 
-  // — VOICE: record on hold —
+     // — VOICE: record on hold —
   const startRecording = async () => {
     if (isRecording) return; // already recording, ignore duplicate triggers
     try {
@@ -660,6 +682,14 @@ export default function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const replyPreviewLabel = (r) => {
+    if (!r) return "";
+    if (r.type === "image") return "📷 Photo";
+    if (r.type === "voice") return "🎤 Voice message";
+    if (r.type === "gif") return "🎞️ GIF";
+    return r.message;
+  };
+
   const formatRecTime = (s) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const r = (s % 60).toString().padStart(2, "0");
@@ -710,7 +740,7 @@ export default function Chat() {
 
   //  REPLY 
   const handleReply = useCallback((msg) => {
-    setReplyTo({ id: msg.id, username: msg.username, message: msg.message });
+    setReplyTo({ id: msg.id, username: msg.username, message: msg.message, type: msg.type });
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
@@ -759,7 +789,14 @@ export default function Chat() {
             const quoted = msg.reply_to ? getQuoted(msg.reply_to) : null;
 
             return (
-              <SwipeableMessage key={msg.id} msg={msg} isMe={isMe} onReply={handleReply}>
+              <SwipeableMessage
+                key={msg.id}
+                msg={msg}
+                isMe={isMe}
+                onReply={handleReply}
+                msgRef={(el) => (messageRefs.current[msg.id] = el)}
+                highlighted={highlightedId === msg.id}
+              >
                 <div className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                   <div className={`flex items-start gap-1.5 max-w-[85%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
 
@@ -790,8 +827,7 @@ export default function Chat() {
                         )}
                       </div>
                     )}
-
-                    {/* BUBBLE COLUMN */}
+    {/* BUBBLE COLUMN */}
                     <div className="flex flex-col space-y-1 min-w-0">
                       {!isMe && (
                         <p className="text-[10px] font-bold text-sky-400/90 px-1">@{msg.username}</p>
@@ -800,15 +836,39 @@ export default function Chat() {
                       {/* QUOTED PREVIEW */}
                       {quoted && (
                         <div className={`flex ${isMe ? "justify-end" : "justify-start"} mb-0.5`}>
-                          <div className={`flex items-stretch max-w-full rounded-2xl overflow-hidden border ${isMe ? "border-blue-400/30 bg-blue-950/40" : "border-slate-700 bg-slate-800/60"}`}>
+                          <button
+                            onClick={() =>
+                              quoted.type === "voice"
+                                ? jumpAndPlayVoice(quoted)
+                                : jumpToMessage(quoted.id)
+                            }
+                            className={`flex items-stretch max-w-full rounded-2xl overflow-hidden border transition active:scale-[0.98] ${isMe ? "border-blue-400/30 bg-blue-950/40" : "border-slate-700 bg-slate-800/60"}`}
+                          >
                             <div className={`w-1 flex-shrink-0 ${isMe ? "bg-blue-400" : "bg-sky-500"}`} />
+
+                            {/* Thumbnail for image/gif replies */}
+                            {(quoted.type === "image" || quoted.type === "gif") && quoted.media_url && (
+                              <img
+                                src={quoted.media_url}
+                                alt=""
+                                className="w-10 h-10 object-cover flex-shrink-0"
+                              />
+                            )}
+
+                            {/* Play icon for voice replies */}
+                            {quoted.type === "voice" && (
+                              <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+                                <Play size={14} className={isMe ? "text-blue-300" : "text-sky-400"} />
+                              </div>
+                            )}
+
                             <div className="px-3 py-2 min-w-0">
                               <p className={`text-[10px] font-bold mb-0.5 ${isMe ? "text-blue-300" : "text-sky-400"}`}>
                                 @{quoted.username}
                               </p>
-                              <p className="text-xs text-slate-400 truncate max-w-[200px]">{quoted.message}</p>
+                              <p className="text-xs text-slate-400 truncate max-w-[160px]">{replyPreviewLabel(quoted)}</p>
                             </div>
-                          </div>
+                          </button>
                         </div>
                       )}
 
@@ -875,7 +935,7 @@ export default function Chat() {
           <div className="w-1 bg-sky-500 flex-shrink-0" />
           <div className="flex-1 px-3 py-2 min-w-0">
             <p className="text-[10px] font-bold text-sky-400 mb-0.5">replying to @{replyTo.username}</p>
-            <p className="text-xs text-slate-400 truncate">{replyTo.message}</p>
+            <p className="text-xs text-slate-400 truncate">{replyPreviewLabel(replyTo)}</p>
           </div>
           <button onClick={() => setReplyTo(null)}
             className="px-3 text-slate-500 hover:text-slate-300 transition active:scale-90 flex-shrink-0">
@@ -979,7 +1039,7 @@ export default function Chat() {
                 </button>
               </div>
 
-           {/* Tap this to stop + send */}
+              {/* Tap this to stop + send */}
               <button
                 onClick={finishAndSendRecording}
                 disabled={uploadingVoice}
