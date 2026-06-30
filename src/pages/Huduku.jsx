@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { Search as SearchIcon, X, Loader2, FileText, Plus, Image as ImageIcon, Upload, FolderOpen, MoreVertical, Trash2, Pencil, Check } from "lucide-react";
+import { Search as SearchIcon, X, Loader2, FileText, Plus, Image as ImageIcon, Upload, FolderOpen, MoreVertical, Trash2, Pencil, Check, Heart } from "lucide-react";
 
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts)) / 1000);
@@ -131,7 +131,7 @@ function UploadSheet({ onClose, onUploaded }) {
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors resize-none text-sm leading-relaxed"
             />
             <p className="text-[11px] text-gray-400 mt-1.5">
-              💡 Write a clear, searchable caption so others can find this easily.
+              💡 Write a clear, searchable caption so others or other college students can find this easily.
             </p>
           </div>
 
@@ -399,17 +399,32 @@ export default function Huduku() {
     fetchRecent();
   }, []);
 
+  const currentUser = JSON.parse(localStorage.getItem("anon_user") || "null");
+
+  const fetchLikedSet = async (resourceIds) => {
+    if (!currentUser || !resourceIds.length) return new Set();
+    const { data } = await supabase
+      .from("resource_likes")
+      .select("resource_id")
+      .eq("student_id", currentUser.id)
+      .in("resource_id", resourceIds);
+    return new Set((data || []).map((r) => r.resource_id));
+  };
+
   const fetchRecent = async () => {
     const { data } = await supabase
       .from("resources")
       .select(`
-        id, caption, college_name, created_at,
+        id, caption, college_name, created_at, likes_count,
         students(full_name),
         resource_images(image_url, position)
       `)
       .order("created_at", { ascending: false })
       .limit(10);
-    setRecent(data || []);
+
+    const rows = data || [];
+    const liked = await fetchLikedSet(rows.map((r) => r.id));
+    setRecent(rows.map((r) => ({ ...r, liked_by_me: liked.has(r.id) })));
   };
 
   const runSearch = async (text) => {
@@ -424,16 +439,67 @@ export default function Huduku() {
     const { data, error } = await supabase
       .from("resources")
       .select(`
-        id, caption, college_name, created_at,
+        id, caption, college_name, created_at, likes_count,
         students(full_name),
         resource_images(image_url, position)
       `)
       .ilike("caption", `%${text.trim()}%`)
+      .order("likes_count", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(30);
 
-    if (!error) setResults(data || []);
+    if (!error) {
+      const rows = data || [];
+      const liked = await fetchLikedSet(rows.map((r) => r.id));
+      setResults(rows.map((r) => ({ ...r, liked_by_me: liked.has(r.id) })));
+    }
     setLoading(false);
+  };
+
+  const toggleLike = async (resource, e) => {
+    e.stopPropagation();
+    if (!currentUser) return;
+
+    const isLiked = resource.liked_by_me;
+    const updateList = (list) =>
+      list.map((r) =>
+        r.id === resource.id
+          ? { ...r, liked_by_me: !isLiked, likes_count: r.likes_count + (isLiked ? -1 : 1) }
+          : r
+      );
+
+    // Optimistic UI update
+    setRecent((prev) => updateList(prev));
+    setResults((prev) => updateList(prev));
+
+    try {
+      if (isLiked) {
+        await supabase
+          .from("resource_likes")
+          .delete()
+          .eq("resource_id", resource.id)
+          .eq("student_id", currentUser.id);
+
+        await supabase
+          .from("resources")
+          .update({ likes_count: Math.max(0, resource.likes_count - 1) })
+          .eq("id", resource.id);
+      } else {
+        await supabase
+          .from("resource_likes")
+          .insert({ resource_id: resource.id, student_id: currentUser.id });
+
+        await supabase
+          .from("resources")
+          .update({ likes_count: resource.likes_count + 1 })
+          .eq("id", resource.id);
+      }
+    } catch (err) {
+      // Revert on failure
+      console.error("Like toggle failed:", err);
+      setRecent((prev) => updateList(prev));
+      setResults((prev) => updateList(prev));
+    }
   };
 
   const handleChange = (e) => {
@@ -465,9 +531,9 @@ export default function Huduku() {
 
         {/* Header */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
-          <p className="font-bold text-gray-900 text-base mb-2">🔍 Huduki</p>
+          <p className="font-bold text-gray-900 text-base mb-2">🔍 Huduku</p>
 
-          {/* Search bar */}
+   {/* Search bar */}
           <div className="flex items-center bg-gray-100 rounded-full px-4 py-2.5 gap-2">
             <SearchIcon size={16} className="text-gray-400 flex-shrink-0" />
             <input
@@ -511,12 +577,12 @@ export default function Huduku() {
               {list.map((r) => {
                 const imgs = sortedImages(r);
                 return (
-                  <button
+                  <div
                     key={r.id}
                     onClick={() => navigate(`/resource/${r.id}`)}
-                    className="w-full flex gap-3 items-start p-3 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition text-left active:scale-[0.99]"
+                    className="w-full flex gap-3 items-start p-3 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition text-left active:scale-[0.99] cursor-pointer"
                   >
-               <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
+                    <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
                       {imgs[0] ? (
                         <img src={imgs[0].image_url} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -542,7 +608,21 @@ export default function Huduku() {
                         {imgs.length} image{imgs.length !== 1 ? "s" : ""} · by {r.students?.full_name?.split(" ")[0] || "Unknown"}
                       </p>
                     </div>
-                  </button>
+
+                    {/* Like button */}
+                    <button
+                      onClick={(e) => toggleLike(r, e)}
+                      className="flex flex-col items-center gap-0.5 flex-shrink-0 self-center px-1 active:scale-90 transition"
+                    >
+                      <Heart
+                        size={20}
+                        className={r.liked_by_me ? "fill-rose-500 text-rose-500" : "text-gray-300"}
+                      />
+                      <span className={`text-[10px] font-bold ${r.liked_by_me ? "text-rose-500" : "text-gray-400"}`}>
+                        {r.likes_count || 0}
+                      </span>
+                    </button>
+                  </div>
                 );
               })}
             </div>
