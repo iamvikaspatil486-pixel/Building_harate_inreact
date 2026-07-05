@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause } from "lucide-react";
 
@@ -787,6 +787,7 @@ export default function Chat() {
             const isEditing = editingId === msg.id;
             const menuOpen = openMenuId === msg.id;
             const quoted = msg.reply_to ? getQuoted(msg.reply_to) : null;
+            const navigate = useNavigate()     
 
             return (
               <SwipeableMessage
@@ -999,6 +1000,15 @@ export default function Chat() {
               </div>
               <span className="text-[10px] text-slate-500 font-semibold">Photo</span>
             </button>
+       <button
+onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
+  className="flex flex-col items-center gap-1 active:scale-90 transition"
+>
+  <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center">
+    <span className="text-xl">🎮</span>
+  </div>
+  <span className="text-[10px] text-slate-500 font-semibold">Games</span>
+</button>
 
             <button
               onClick={() => { setShowGifSheet(true); setAttachOpen(false); }}

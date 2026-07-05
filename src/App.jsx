@@ -12,6 +12,8 @@ import Profile from './pages/profile';
 import Navigation from './components/navigation';
 import Huduku from './pages/Huduku'
 import ResourceDetail from './pages/ResourceDetail'
+import GameList from './components/gamelist'
+import CampusGame from './components/Campusexplorer'
 import { ShieldAlert } from 'lucide-react';
 import OneSignal from 'react-onesignal'; // 🚀 Added OneSignal SDK Integration
 
@@ -109,6 +111,8 @@ function AppLayout({ session, setSession }) {
 <Route path="/resource/:id" element={session ? <ResourceDetail /> : <Navigate to="/" />} />
         <Route path="/add-post" element={session ? <AddPost /> : <Navigate to="/login" replace />} />
         <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" replace />} />     
+        <Route path="/Campusexplorer" element={session ? <CampusGame/> : <Navigate to="/login" replace />} />
+       <Route path="/gamelist" element={session ? <GameList/> : <Navigate to="/login" replace />} />
         
         {/* Catch-all global fallback */}
 <Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
