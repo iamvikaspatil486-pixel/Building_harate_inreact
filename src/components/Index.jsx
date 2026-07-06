@@ -106,7 +106,7 @@ export default function Index() {
             Welcome to<br />
             <span className="bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 bg-clip-text text-transparent mt-2 inline-block uppercase tracking-wide">STUDENTS HARATE</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-4 px-4">Your private corner of college life.</p>
+          <p className="text-sm text-slate-400 mt-4 px-4">One place to connect all our batchmates.</p>
           <div className="w-10 h-[1px] my-8 bg-white/10" />
           <div className="w-full space-y-3 px-2">
             <button onClick={() => navigate("/login")} className="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-blue-600/10">Login</button>
