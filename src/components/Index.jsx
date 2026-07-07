@@ -104,7 +104,7 @@ export default function Index() {
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">
             Welcome to<br />
-            <span className="bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 bg-clip-text text-transparent mt-2 inline-block uppercase tracking-wide">STUDENTS HARATE</span>
+            <span className="bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 bg-clip-text text-transparent mt-2 inline-block uppercase tracking-wide">UNITED STUDENTS</span>
           </h1>
           <p className="text-sm text-slate-400 mt-4 px-4">One place to connect all our batchmates.</p>
           <div className="w-10 h-[1px] my-8 bg-white/10" />
