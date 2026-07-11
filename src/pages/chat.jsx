@@ -305,7 +305,7 @@ function GifSheet({ onClose, onPick }) {
 
 //  MAIN CHAT COMPONENT 
 export default function Chat() {
-  const navigate = useNavigate();
+   const navigate = useNavigate();
   const [username, setUsername] = useState(null);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -787,7 +787,6 @@ export default function Chat() {
             const isEditing = editingId === msg.id;
             const menuOpen = openMenuId === msg.id;
             const quoted = msg.reply_to ? getQuoted(msg.reply_to) : null;
-            const navigate = useNavigate()     
 
             return (
               <SwipeableMessage
