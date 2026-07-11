@@ -21,7 +21,7 @@ export default function GameList() {
           </p>
           <button 
             style={styles.playButton} 
-            onClick={() => navigate('/games/tictactoe')}
+            onClick={() => navigate('/tictactoe')}
           >
             Play Now
           </button>
