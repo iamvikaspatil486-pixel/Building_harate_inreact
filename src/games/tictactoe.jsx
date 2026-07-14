@@ -433,22 +433,29 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
           </div>
 
           {/* Chat input */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
-            <input
-              value={chatText}
-              onChange={(e) => setChatText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-              placeholder="Type a message…"
-              className="flex-1 bg-gray-50 rounded-full px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none"
-            />
-      <button onClick={sendChat} disabled={!chatText.trim()}
-              className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition">
-              <Send size={13} />
-            </button>
-          </div>
-        </div>
+{/* Chat input container */}
+<div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100 w-full bg-white">
+  
+  {/* Send button moved to the LEFT */}
+  <button 
+    onClick={sendChat} 
+    disabled={!chatText.trim()}
+    className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition flex-shrink-0"
+  >
+    <Send size={15} />
+  </button>
 
-      </div>
+  {/* Input bar fills remaining space (full width) */}
+  <input
+    value={chatText}
+    onChange={(e) => setChatText(e.target.value)}
+    onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+    placeholder="Type a message…"
+    className="flex-1 bg-gray-50 rounded-full px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none w-full"
+  />
+</div>
+</div>
+</div>
     </>
   );
 }
