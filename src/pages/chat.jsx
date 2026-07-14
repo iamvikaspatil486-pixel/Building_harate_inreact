@@ -778,8 +778,8 @@ export default function Chat() {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <p className="text-4xl mb-2"></p>
-            <p className="font-bold text-slate-400">No messages yet</p>
-            <p className="text-slate-600 text-sm">Swipe a message to reply</p>
+            <p className="font-bold text-slate-400">loading...</p>
+            <p className="text-slate-600 text-sm">messages auto delete after 10 hour</p>
           </div>
         ) : (
           messages.map((msg) => {

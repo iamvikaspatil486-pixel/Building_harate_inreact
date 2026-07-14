@@ -370,20 +370,29 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
         </p>
 
         {/* Board */}
-     <div className="grid grid-cols-3 gap-3 mb-6">
-          {board.map((cell, i) => {
-            const isWinning = winningLine.includes(i);
-            return (
-              <button key={i} onClick={() => handleClick(i)}
-                className={`aspect-square rounded-2xl text-4xl font-black flex items-center justify-center transition-all active:scale-90
-                  ${isWinning ? 'bg-emerald-100 border-2 border-emerald-400 scale-105' : 'bg-white border border-gray-200 shadow-sm'}
-                  ${!cell && isMyTurn && !winner && !isDraw ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}
-                `}>
-                <span className={cell === 'X' ? 'text-blue-500' : cell === 'O' ? 'text-red-500' : ''}>{cell}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Updated Board Styling */}
+<div className="grid grid-cols-3 gap-2 p-3 bg-gray-200 rounded-3xl shadow-inner border-[6px] border-gray-300">
+  {board.map((cell, i) => {
+    const isWinning = winningLine.includes(i);
+    return (
+      <button 
+        key={i} 
+        onClick={() => handleClick(i)}
+        className={`aspect-square rounded-xl text-4xl font-black flex items-center justify-center transition-all active:scale-95
+          ${isWinning 
+            ? 'bg-emerald-400 text-white shadow-lg' 
+            : 'bg-white shadow-sm border border-gray-100'}
+          ${!cell && isMyTurn && !winner && !isDraw ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}
+        `}>
+        <span className={cell === 'X' ? 'text-blue-500' : 'text-red-500'}>
+          {cell}
+        </span>
+      </button>
+    );
+  })}
+</div>
+      
+
 
         {/* Rematch/Leave */}
         {(winner || isDraw) && (
