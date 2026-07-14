@@ -304,21 +304,30 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   };
 
-  const handleClick = async (index) => {
+    const handleClick = async (index) => {
+    // 1. Prevent action if game is finished or not your turn
     if (!isMyTurn || board[index] !== '' || winner || isDraw) return;
+    
     const newBoard = [...board];
     newBoard[index] = mySymbol;
     const result = checkWinner(newBoard);
     const newWinner = result?.winner || null;
     const newDraw = !newWinner && newBoard.every((c) => c !== '');
+    
+    // 2. Determine next state
     const nextTurn = mySymbol === 'X' ? game.player2 : game.player1;
+    const isFinished = newWinner || newDraw;
+
     await supabase.from('tictactoe_games').update({
       board: newBoard,
-      current_turn: newWinner || newDraw ? null : nextTurn,
+      // If finished, set turn to null to prevent further moves
+      current_turn: isFinished ? null : nextTurn,
       winner: newWinner,
-      status: newWinner || newDraw ? 'finished' : 'playing',
+      // Explicitly set status to 'finished' if game is over
+      status: isFinished ? 'finished' : 'playing',
     }).eq('id', game.id);
   };
+
 
   const handleRematch = async () => {
     setChatMessages([]);
