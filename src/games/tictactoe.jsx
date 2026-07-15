@@ -43,6 +43,8 @@ function FloatingEmoji({ item }) {
 function Leaderboard({ myUsername }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
+  const realMyName = currentUser?.name || myUsername;
 
   useEffect(() => {
     fetchLeaderboard();
@@ -52,7 +54,7 @@ function Leaderboard({ myUsername }) {
     setLoading(true);
     const { data } = await supabase
       .from('ttt_leaderboard')
-      .select('username, wins, losses, draws, total_games')
+      .select('username, real_name, wins, losses, draws, total_games')
       .order('wins', { ascending: false })
       .limit(10);
     setRows(data || []);
@@ -65,6 +67,10 @@ function Leaderboard({ myUsername }) {
   };
 
   const medal = (i) => ['🥇','🥈','🥉'][i] || `#${i + 1}`;
+
+  const getDisplayName = (row) => {
+    return row.real_name || row.username || 'Player';
+  };
 
   return (
     <div className="w-full max-w-sm mt-4 bg-white rounded-3xl shadow-xl border border-gray-100 p-5">
@@ -90,14 +96,15 @@ function Leaderboard({ myUsername }) {
           </div>
 
           {rows.map((row, i) => {
-            const isMe = row.username === myUsername;
+            const displayName = getDisplayName(row);
+            const isMe = row.username === myUsername || row.real_name === realMyName || displayName === realMyName;
             return (
               <div key={row.username}
                 className={`grid grid-cols-5 items-center px-3 py-2.5 rounded-2xl ${isMe ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
                 <div className="col-span-2 flex items-center gap-2 min-w-0">
                   <span className="text-sm flex-shrink-0">{medal(i)}</span>
                   <span className={`text-xs font-bold truncate ${isMe ? 'text-blue-600' : 'text-gray-800'}`}>
-                    {row.username}{isMe ? ' (you)' : ''}
+                    {displayName}{isMe ? ' (you)' : ''}
                   </span>
                 </div>
                 <span className="text-center text-xs font-black text-emerald-600">{row.wins}</span>
@@ -387,20 +394,33 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     const winnerName = isDraw ? null : (winnerSymbol === 'X' ? p1 : p2);
     const loserName  = isDraw ? null : (winnerSymbol === 'X' ? p2 : p1);
 
+    // Try to get real name for current player from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
+    const myRealName = currentUser?.name;
+
     const upsert = async (username, win, loss, draw) => {
       const { data: existing } = await supabase
         .from('ttt_leaderboard').select('*').eq('username', username).single();
+
+      const realNameToSave = (username === myUsername && myRealName) ? myRealName : username;
+
       if (existing) {
         await supabase.from('ttt_leaderboard').update({
           wins: existing.wins + win,
           losses: existing.losses + loss,
           draws: existing.draws + draw,
           total_games: existing.total_games + 1,
+          real_name: realNameToSave,
           updated_at: new Date().toISOString(),
         }).eq('username', username);
       } else {
         await supabase.from('ttt_leaderboard').insert({
-          username, wins: win, losses: loss, draws: draw, total_games: 1,
+          username,
+          real_name: realNameToSave,
+          wins: win,
+          losses: loss,
+          draws: draw,
+          total_games: 1,
         });
       }
     };
@@ -428,7 +448,6 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
       winner: newWinner,
       status: newWinner || newDraw ? 'finished' : 'playing',
     }).eq('id', game.id);
-    // Only the winning/drawing move triggers leaderboard update (avoid double update)
     if (newWinner || newDraw) {
       await updateLeaderboard(newWinner, newDraw);
     }
@@ -444,12 +463,12 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
 
   const statusText = () => {
     if (!game.player2) return 'Waiting for opponent…';
-    if (winner) return winner === mySymbol ? '🎉 You won!' : `😢 ${opponentUsername} won`;
+    if (winner) return winner === mySymbol ? '🎉 You won!' : `😂 ${opponentUsername} won`;
     if (isDraw) return "🤝 It's a draw!";
     return isMyTurn ? '🟢 Your turn' : `⏳ ${opponentUsername}'s turn`;
   };
 
-  return (
+ return (
     <>
       <style>{`
         @keyframes floatUp {
@@ -593,4 +612,4 @@ export default function TicTacToe() {
       <Lobby username={myUsername} onJoinGame={handleJoinGame} />
     </div>
   );
-}     
+}
