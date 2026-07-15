@@ -54,7 +54,7 @@ function Leaderboard({ myUsername }) {
     setLoading(true);
     const { data } = await supabase
       .from('ttt_leaderboard')
-      .select('username, real_name, wins, losses, draws, total_games')
+      .select('real_name, wins, losses, draws, total_games')
       .order('wins', { ascending: false })
       .limit(10);
     setRows(data || []);
@@ -69,7 +69,7 @@ function Leaderboard({ myUsername }) {
   const medal = (i) => ['🥇','🥈','🥉'][i] || `#${i + 1}`;
 
   const getDisplayName = (row) => {
-    return row.real_name || row.username || 'Player';
+    return row.real_name || 'Player';
   };
 
   return (
@@ -97,9 +97,9 @@ function Leaderboard({ myUsername }) {
 
           {rows.map((row, i) => {
             const displayName = getDisplayName(row);
-            const isMe = row.username === myUsername || row.real_name === realMyName || displayName === realMyName;
+             const isMe = realMyName && (displayName === realMyName);
             return (
-              <div key={row.username}
+              <div key={row.real_name || i}
                 className={`grid grid-cols-5 items-center px-3 py-2.5 rounded-2xl ${isMe ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
                 <div className="col-span-2 flex items-center gap-2 min-w-0">
                   <span className="text-sm flex-shrink-0">{medal(i)}</span>
@@ -398,25 +398,22 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
     const myRealName = currentUser?.name;
 
-    const upsert = async (username, win, loss, draw) => {
+    const upsert = async (name, win, loss, draw) => {
       const { data: existing } = await supabase
-        .from('ttt_leaderboard').select('*').eq('username', username).single();
+        .from('ttt_leaderboard').select('*').eq('real_name', name).single();
 
-      const realNameToSave = (username === myUsername && myRealName) ? myRealName : username;
 
-      if (existing) {
+         if (existing) {
         await supabase.from('ttt_leaderboard').update({
           wins: existing.wins + win,
           losses: existing.losses + loss,
           draws: existing.draws + draw,
           total_games: existing.total_games + 1,
-          real_name: realNameToSave,
           updated_at: new Date().toISOString(),
-        }).eq('username', username);
+        }).eq('real_name', name);
       } else {
         await supabase.from('ttt_leaderboard').insert({
-          username,
-          real_name: realNameToSave,
+          real_name: name,
           wins: win,
           losses: loss,
           draws: draw,
