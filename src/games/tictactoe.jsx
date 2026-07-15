@@ -39,6 +39,79 @@ function FloatingEmoji({ item }) {
   );
 }
 
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+function Leaderboard({ myUsername }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, []);
+
+  const fetchLeaderboard = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('ttt_leaderboard')
+      .select('username, wins, losses, draws, total_games')
+      .order('wins', { ascending: false })
+      .limit(10);
+    setRows(data || []);
+    setLoading(false);
+  };
+
+  const winPct = (row) => {
+    if (!row.total_games) return '0%';
+    return `${Math.round((row.wins / row.total_games) * 100)}%`;
+  };
+
+  const medal = (i) => ['🥇','🥈','🥉'][i] || `#${i + 1}`;
+
+  return (
+    <div className="w-full max-w-sm mt-4 bg-white rounded-3xl shadow-xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="font-black text-gray-900 text-base">🏆 Leaderboard</p>
+        <button onClick={fetchLeaderboard} className="text-xs text-blue-500 font-bold">Refresh</button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 size={20} className="animate-spin text-gray-300" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="text-gray-400 text-sm text-center py-6">No games played yet</p>
+      ) : (
+        <div className="space-y-2">
+          {/* Header */}
+          <div className="grid grid-cols-5 text-[10px] font-black text-gray-400 uppercase tracking-wider px-2 mb-1">
+            <span className="col-span-2">Player</span>
+            <span className="text-center">W</span>
+            <span className="text-center">D</span>
+            <span className="text-center">Win%</span>
+          </div>
+
+          {rows.map((row, i) => {
+            const isMe = row.username === myUsername;
+            return (
+              <div key={row.username}
+                className={`grid grid-cols-5 items-center px-3 py-2.5 rounded-2xl ${isMe ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
+                <div className="col-span-2 flex items-center gap-2 min-w-0">
+                  <span className="text-sm flex-shrink-0">{medal(i)}</span>
+                  <span className={`text-xs font-bold truncate ${isMe ? 'text-blue-600' : 'text-gray-800'}`}>
+                    {row.username}{isMe ? ' (you)' : ''}
+                  </span>
+                </div>
+                <span className="text-center text-xs font-black text-emerald-600">{row.wins}</span>
+                <span className="text-center text-xs font-bold text-amber-500">{row.draws}</span>
+                <span className="text-center text-xs font-black text-blue-500">{winPct(row)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Lobby ─────────────────────────────────────────────────────────────────────
 function Lobby({ username, onJoinGame }) {
   const [mode, setMode] = useState(null);
@@ -170,7 +243,7 @@ function Lobby({ username, onJoinGame }) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4 pb-10">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
         <h1 className="text-2xl font-black text-gray-900 text-center mb-1">Tic Tac Toe</h1>
         <p className="text-gray-400 text-sm text-center mb-6">Playing as <span className="font-bold text-blue-500">@{username}</span></p>
@@ -236,6 +309,8 @@ function Lobby({ username, onJoinGame }) {
           </div>
         )}
       </div>
+
+      <Leaderboard myUsername={username} />
     </div>
   );
 }
@@ -304,30 +379,60 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   };
 
-    const handleClick = async (index) => {
-    // 1. Prevent action if game is finished or not your turn
+  const updateLeaderboard = async (winnerSymbol, isDraw) => {
+    const p1 = game.player1;
+    const p2 = game.player2;
+    if (!p1 || !p2) return;
+
+    const winnerName = isDraw ? null : (winnerSymbol === 'X' ? p1 : p2);
+    const loserName  = isDraw ? null : (winnerSymbol === 'X' ? p2 : p1);
+
+    const upsert = async (username, win, loss, draw) => {
+      const { data: existing } = await supabase
+        .from('ttt_leaderboard').select('*').eq('username', username).single();
+      if (existing) {
+        await supabase.from('ttt_leaderboard').update({
+          wins: existing.wins + win,
+          losses: existing.losses + loss,
+          draws: existing.draws + draw,
+          total_games: existing.total_games + 1,
+          updated_at: new Date().toISOString(),
+        }).eq('username', username);
+      } else {
+        await supabase.from('ttt_leaderboard').insert({
+          username, wins: win, losses: loss, draws: draw, total_games: 1,
+        });
+      }
+    };
+
+    if (isDraw) {
+      await upsert(p1, 0, 0, 1);
+      await upsert(p2, 0, 0, 1);
+    } else {
+      await upsert(winnerName, 1, 0, 0);
+      await upsert(loserName, 0, 1, 0);
+    }
+  };
+
+  const handleClick = async (index) => {
     if (!isMyTurn || board[index] !== '' || winner || isDraw) return;
-    
     const newBoard = [...board];
     newBoard[index] = mySymbol;
     const result = checkWinner(newBoard);
     const newWinner = result?.winner || null;
     const newDraw = !newWinner && newBoard.every((c) => c !== '');
-    
-    // 2. Determine next state
     const nextTurn = mySymbol === 'X' ? game.player2 : game.player1;
-    const isFinished = newWinner || newDraw;
-
     await supabase.from('tictactoe_games').update({
       board: newBoard,
-      // If finished, set turn to null to prevent further moves
-      current_turn: isFinished ? null : nextTurn,
+      current_turn: newWinner || newDraw ? null : nextTurn,
       winner: newWinner,
-      // Explicitly set status to 'finished' if game is over
-      status: isFinished ? 'finished' : 'playing',
+      status: newWinner || newDraw ? 'finished' : 'playing',
     }).eq('id', game.id);
+    // Only the winning/drawing move triggers leaderboard update (avoid double update)
+    if (newWinner || newDraw) {
+      await updateLeaderboard(newWinner, newDraw);
+    }
   };
-
 
   const handleRematch = async () => {
     setChatMessages([]);
@@ -358,7 +463,7 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
 
       <div className="flex flex-col min-h-screen bg-gray-50">
 
-        {/* Header */}
+    {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-2">
           <button onClick={onLeave} className="p-2 rounded-xl bg-white border border-gray-200 text-gray-500 active:scale-90 transition">
             <ArrowLeft size={18} />
@@ -379,29 +484,20 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
         </p>
 
         {/* Board */}
-        {/* Updated Board Styling */}
-<div className="grid grid-cols-3 gap-2 p-3 bg-gray-200 rounded-3xl shadow-inner border-[6px] border-gray-300">
-  {board.map((cell, i) => {
-    const isWinning = winningLine.includes(i);
-    return (
-      <button 
-        key={i} 
-        onClick={() => handleClick(i)}
-        className={`aspect-square rounded-xl text-4xl font-black flex items-center justify-center transition-all active:scale-95
-          ${isWinning 
-            ? 'bg-emerald-400 text-white shadow-lg' 
-            : 'bg-white shadow-sm border border-gray-100'}
-          ${!cell && isMyTurn && !winner && !isDraw ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}
-        `}>
-        <span className={cell === 'X' ? 'text-blue-500' : 'text-red-500'}>
-          {cell}
-        </span>
-      </button>
-    );
-  })}
-</div>
-      
-
+        <div className="grid grid-cols-3 gap-3 px-6 mb-4">
+          {board.map((cell, i) => {
+            const isWinning = winningLine.includes(i);
+            return (
+              <button key={i} onClick={() => handleClick(i)}
+                className={`aspect-square rounded-2xl text-4xl font-black flex items-center justify-center transition-all active:scale-90
+                  ${isWinning ? 'bg-emerald-100 border-2 border-emerald-400 scale-105' : 'bg-white border border-gray-200 shadow-sm'}
+                  ${!cell && isMyTurn && !winner && !isDraw ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}
+                `}>
+                <span className={cell === 'X' ? 'text-blue-500' : cell === 'O' ? 'text-red-500' : ''}>{cell}</span>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Rematch/Leave */}
         {(winner || isDraw) && (
@@ -442,8 +538,7 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
           </div>
 
           {/* Chat input */}
-{/* Chat input container */}
-<div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100 w-full bg-white">
+         <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100 w-full bg-white">
   
   {/* Send button moved to the LEFT */}
   <button 
@@ -464,7 +559,8 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
   />
 </div>
 </div>
-</div>
+</div>     
+
     </>
   );
 }
@@ -497,4 +593,4 @@ export default function TicTacToe() {
       <Lobby username={myUsername} onJoinGame={handleJoinGame} />
     </div>
   );
-}
+}     
