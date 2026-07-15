@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 
-
 export default function Login() {
- const navigate = useNavigate()
-  const [step, setStep] = useState(1)       // 1=name/roll, 2=batch, 3=password
+  const navigate = useNavigate()
+  const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -20,6 +19,38 @@ export default function Login() {
   // Step 3
   const [password, setPassword] = useState('')
 
+  // ── FORGOT PASSWORD ─────────────────────────────────────
+  const handleForgotPassword = async () => {
+    if (!student?.email) {
+      alert("No email registered for this student. Please contact admin.")
+      return
+    }
+
+    const confirmSend = window.confirm(`Send password reset link to ${student.email}?`)
+    if (!confirmSend) return
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(student.email, {
+        redirectTo: window.location.hostname === 'localhost'
+          ? 'http://localhost:5174/reset-password'
+          : 'https://studentsharate.me/reset-password',
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        alert(`✅ Password reset link sent to ${student.email}\n\nCheck your inbox (and spam folder)!`)
+      }
+    } catch (err) {
+      setError('Something went wrong. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // ── STEP 1: Find Student ────────────────────────────────
   async function handleFindStudent() {
     if (!nameOrRoll.trim()) {
@@ -31,21 +62,18 @@ export default function Login() {
     setError('')
 
     try {
-      // Try roll number first
       let { data, error } = await supabase
         .from('students')
         .select('*')
         .eq('roll_no', nameOrRoll.trim())
         .single()
 
-      // If not found, try name
       if (error || !data) {
         const res = await supabase
           .from('students')
           .select('*')
           .ilike('full_name', `%${nameOrRoll.trim()}%`)
           .single()
-
         data = res.data
         error = res.error
       }
@@ -108,48 +136,42 @@ export default function Login() {
   }
 
   // ── STEP 3: Login ───────────────────────────────────────
-async function handleLogin() {
-  if (!password.trim()) {
-    setError('Enter your password')
-    return
-  }
-
-  setLoading(true)
-  setError('')
-
-  try {
-    if (student.email) {
-      // Has email — use Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: student.email,
-        password: password
-      })
-      if (error) {
-        setError('Wrong password. Try again.')
-        return
-      }
-    } else {
-      // No email — check password directly from students table
-      if (student.password !== password) {
-        setError('Wrong password. Try again.')
-        return
-      }
+  async function handleLogin() {
+    if (!password.trim()) {
+      setError('Enter your password')
+      return
     }
 
-    // rest of login — session token, localStorage, navigate stays same
+    setLoading(true)
+    setError('')
+
+    try {
+      if (student.email) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: student.email,
+          password: password
+        })
+        if (error) {
+          setError('Wrong password. Try again.')
+          return
+        }
+      } else {
+        if (student.password !== password) {
+          setError('Wrong password. Try again.')
+          return
+        }
+      }
 
       // Generate session token
-      const sessionToken = typeof crypto.randomUUID === 'function' 
-  ? crypto.randomUUID() 
-  : Math.random().toString(36).substring(2) + Date.now().toString(36);
+      const sessionToken = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2) + Date.now().toString(36)
 
-
-      // Save session token to students table
+      // Save session token
       await supabase
         .from('students')
         .update({ session_token: sessionToken })
         .eq('id', student.id)
-        .select();
 
       // Save to localStorage
       localStorage.setItem('anon_user', JSON.stringify({
@@ -169,7 +191,6 @@ async function handleLogin() {
 
       localStorage.setItem('session_token', sessionToken)
 
-      // Redirect to home
       navigate('/home')
 
     } catch (err) {
@@ -179,29 +200,22 @@ async function handleLogin() {
     }
   }
 
-  // ── HANDLE ENTER KEY ────────────────────────────────────
   function handleKeyDown(e, action) {
     if (e.key === 'Enter') action()
   }
 
-  // ── UI ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
 
-      {/* Logo */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-black text-cyan-400 tracking-tight">
           STUDENTS HARATE
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Your college social space
-        </p>
+        <p className="text-slate-400 text-sm mt-1">Your college social space</p>
       </div>
 
-      {/* Card */}
       <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
 
-        {/* Step Indicator */}
         <div className="flex items-center gap-2 mb-6">
           {[1, 2, 3].map(s => (
             <div key={s} className="flex items-center gap-2 flex-1">
@@ -211,83 +225,64 @@ async function handleLogin() {
                   'bg-slate-800 text-slate-500'}`}>
                 {step > s ? '✓' : s}
               </div>
-              {s < 3 && (
-                <div className={`flex-1 h-0.5 ${step > s ? 'bg-cyan-500' : 'bg-slate-800'}`} />
-              )}
+              {s < 3 && <div className={`flex-1 h-0.5 ${step > s ? 'bg-cyan-500' : 'bg-slate-800'}`} />}
             </div>
           ))}
         </div>
 
-        {/* Error */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-xl mb-4">
             {error}
           </div>
         )}
 
-        {/* ── STEP 1: Name or Roll ── */}
+        {/* Step 1 */}
         {step === 1 && (
           <div className="space-y-4">
             <div>
               <p className="text-slate-400 text-sm mb-1">Step 1 of 3</p>
-              <h2 className="text-lg font-bold text-white">Who are you?</h2>
+              <h2 className="text-lg font-bold">Who are you?</h2>
             </div>
-
             <input
               type="text"
               placeholder="Enter name or roll number"
               value={nameOrRoll}
               onChange={e => { setNameOrRoll(e.target.value); setError('') }}
               onKeyDown={e => handleKeyDown(e, handleFindStudent)}
-              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors"
+              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500"
             />
-
-            <button
-              onClick={handleFindStudent}
-              disabled={loading}
-              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-900 font-bold rounded-xl transition-colors disabled:opacity-50">
+            <button onClick={handleFindStudent} disabled={loading} className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold rounded-xl disabled:opacity-50">
               {loading ? 'Searching...' : 'Continue →'}
             </button>
           </div>
         )}
 
-        {/* ── STEP 2: Batch Code ── */}
+        {/* Step 2 */}
         {step === 2 && (
           <div className="space-y-4">
             <div>
               <p className="text-slate-400 text-sm mb-1">Step 2 of 3</p>
-              <h2 className="text-lg font-bold text-white">
-                Hi {student?.full_name?.split(' ')[0]}! 👋
-              </h2>
+              <h2 className="text-lg font-bold">Hi {student?.full_name?.split(' ')[0]}! 👋</h2>
               <p className="text-slate-400 text-sm">Enter your batch code</p>
             </div>
-
             <input
               type="text"
               placeholder="Batch code (e.g. 73hsuwi)"
               value={batchCode}
               onChange={e => { setBatchCode(e.target.value.toUpperCase()); setError('') }}
               onKeyDown={e => handleKeyDown(e, handleVerifyBatch)}
-              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors uppercase tracking-widest"
+              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 uppercase tracking-widest"
             />
-
             <div className="flex gap-3">
-              <button
-                onClick={() => { setStep(1); setError('') }}
-                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors">
-                ← Back
-              </button>
-              <button
-                onClick={handleVerifyBatch}
-                disabled={loading}
-                className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-900 font-bold rounded-xl transition-colors disabled:opacity-50">
+              <button onClick={() => { setStep(1); setError('') }} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl">← Back</button>
+              <button onClick={handleVerifyBatch} disabled={loading} className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold rounded-xl disabled:opacity-50">
                 {loading ? 'Checking...' : 'Continue →'}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── STEP 3: Password ── */}
+        {/* Step 3 - Password with Forgot Password */}
         {step === 3 && (
           <div className="space-y-4">
             <div>
@@ -304,19 +299,21 @@ async function handleLogin() {
               value={password}
               onChange={e => { setPassword(e.target.value); setError('') }}
               onKeyDown={e => handleKeyDown(e, handleLogin)}
-              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500 transition-colors"
+              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 outline-none focus:border-cyan-500"
             />
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setStep(2); setError('') }}
-                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors">
-                ← Back
-              </button>
-              <button
-                onClick={handleLogin}
-                disabled={loading}
-                className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-900 font-bold rounded-xl transition-colors disabled:opacity-50">
+            {/* Forgot Password Button */}
+            <button
+              onClick={handleForgotPassword}
+              disabled={loading || !student?.email}
+              className="text-cyan-400 hover:text-cyan-300 text-sm font-medium underline underline-offset-4 transition-all disabled:opacity-50"
+            >
+              Forgot Password?
+            </button>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => { setStep(2); setError('') }} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl">← Back</button>
+              <button onClick={handleLogin} disabled={loading} className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold rounded-xl disabled:opacity-50">
                 {loading ? 'Logging in...' : 'Login ✓'}
               </button>
             </div>
@@ -325,18 +322,11 @@ async function handleLogin() {
 
       </div>
 
-      {/* Register Link */}
       <p className="text-slate-500 text-sm mt-6">
         New student?{' '}
-<button onClick={() => navigate('/register')} className="text-cyan-400 font-bold">
-  Register here
-</button>
-        
+        <button onClick={() => navigate('/register')} className="text-cyan-400 font-bold">Register here</button>
       </p>
 
     </div>
   )
 }
-
-
-

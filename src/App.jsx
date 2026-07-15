@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase';
 import Index from './components/Index'; 
 import Login from './components/Login';
 import Register from './components/Register';
+import ResetPassword from './components/reset-password';
 import CreateBatch from './components/create-batch';
 import Home from './pages/home';
 import AddPost from './pages/add-post';
@@ -103,6 +104,7 @@ function AppLayout({ session, setSession }) {
         <Route path="/login" element={session ? <Navigate to="/home" replace /> : <Login />} />
         <Route path="/register" element={!session ? <Register /> : <Navigate to="/login" replace />} />
       <Route path="/create-batch" element={!session ? <CreateBatch /> : <Navigate to="/login" replace />} />
+     <Route path="/reset-password" element={!session ? <ResetPassword /> : <Navigate to="/login" replace />} />
 
         {/* ─── PROTECTED APPLICATION ROUTES ─── */}
         <Route path="/home" element={session ? <Home /> : <Navigate to="/" replace />} />
