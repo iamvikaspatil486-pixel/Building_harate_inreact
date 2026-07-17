@@ -9,21 +9,26 @@ const EXAMPLES = ["truth_teller", "Batman", "princess", "night_viber"];
 const SWIPE_THRESHOLD = 60; // px to trigger reply
 const GIPHY_API_KEY = "4O3KmphtX0AmuqeXjq61mvOdzYJWe8gN";
 const timeAgo = (ts) => {
+  if (!ts) return '';
 
-  // Convert UTC to local Indian time properly
-  const utcDate = new Date(ts);
-  const localDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000)); // Add IST offset
+  try {
+    // Handle Supabase timestamp properly (UTC)
+    const date = new Date(ts);
+    
+    if (isNaN(date.getTime())) return '';
 
-  const now = new Date();
-  const diffMs = now - localDate;
-  const diffSeconds = Math.floor(diffMs / 1000);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSeconds = Math.floor(Math.max(0, diffMs / 1000)); // Prevent negative
 
-  if (diffSeconds < 15) return 'just now';           // Safety for small differences
-  if (diffSeconds < 60) return `${s}s ago`;
-  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
-  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
-  
-  return `${Math.floor(diffSeconds / 86400)}d ago`;
+    if (diffSeconds < 60) return 'just now';
+    if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+    if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
+    
+    return `${Math.floor(diffSeconds / 86400)}d ago`;
+  } catch (e) {
+    return '';
+  }
 };
 
 //  USERNAME POPUP 
@@ -811,6 +816,7 @@ export default function Chat() {
             <p className="text-4xl mb-2"></p>
             <p className="font-bold text-slate-400">loading...</p>
             <p className="text-slate-600 text-sm">messages auto delete after 10 hour</p>
+      <p className="text-slate-600 text-sm">swipe slightly to left to see timings of msgs</p>
           </div>
         ) : (
           messages.map((msg) => {
