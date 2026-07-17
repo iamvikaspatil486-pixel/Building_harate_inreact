@@ -8,6 +8,23 @@ const HOURS = 10;
 const EXAMPLES = ["truth_teller", "Batman", "princess", "night_viber"];
 const SWIPE_THRESHOLD = 60; // px to trigger reply
 const GIPHY_API_KEY = "4O3KmphtX0AmuqeXjq61mvOdzYJWe8gN";
+const timeAgo = (ts) => {
+
+  // Convert UTC to local Indian time properly
+  const utcDate = new Date(ts);
+  const localDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000)); // Add IST offset
+
+  const now = new Date();
+  const diffMs = now - localDate;
+  const diffSeconds = Math.floor(diffMs / 1000);
+
+  if (diffSeconds < 15) return 'just now';           // Safety for small differences
+  if (diffSeconds < 60) return `${s}s ago`;
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
+  
+  return `${Math.floor(diffSeconds / 86400)}d ago`;
+};
 
 //  USERNAME POPUP 
 function UsernamePicker({ onDone, currentUsername, onCancel }) {
@@ -88,6 +105,7 @@ function SwipeableMessage({ msg, isMe, children, onReply, msgRef, highlighted })
   const [dragX, setDragX] = useState(0);
   const [swiping, setSwiping] = useState(false);
   const [triggered, setTriggered] = useState(false);
+const [showTime, setShowTime] = useState(false);
   const startX = useRef(null);
   const startY = useRef(null);
   const isLocked = useRef(false); // locked to horizontal drag
@@ -118,7 +136,14 @@ function SwipeableMessage({ msg, isMe, children, onReply, msgRef, highlighted })
     // For received msgs: swipe right (dx > 0). For sent: swipe left (dx < 0)
     const direction = isMe ? -1 : 1;
     const raw = dx * direction;
+const leftMove = dx * -1;
+if (leftMove > 20) {
+  setShowTime(true);
+} else {
+  setShowTime(false);
+}
     if (raw < 0) return; // wrong direction
+
 
     e.preventDefault(); // stop scroll only when swiping horizontally
     setSwiping(true);
@@ -142,6 +167,7 @@ function SwipeableMessage({ msg, isMe, children, onReply, msgRef, highlighted })
     setSwiping(false);
     setTriggered(false);
     setDragX(0);
+    setShowTime(false); // ← add this
     startX.current = null;
     isLocked.current = false;
   };
@@ -185,6 +211,11 @@ function SwipeableMessage({ msg, isMe, children, onReply, msgRef, highlighted })
       >
         {children}
       </div>
+     {showTime && (
+  <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-slate-500 font-medium pointer-events-none">
+    {timeAgo(msg.created_at)}
+  </div>
+)}
     </div>
   );
 }
@@ -788,6 +819,8 @@ export default function Chat() {
             const menuOpen = openMenuId === msg.id;
             const quoted = msg.reply_to ? getQuoted(msg.reply_to) : null;
 
+
+
             return (
               <SwipeableMessage
                 key={msg.id}
@@ -919,6 +952,7 @@ export default function Chat() {
                           {msg.edited && <span className="ml-1.5 text-[10px] opacity-60 font-normal">edited</span>}
                         </div>
                       )}
+
                     </div>
                   </div>
                 </div>
