@@ -40,11 +40,13 @@ function FloatingEmoji({ item }) {
 }
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
-function Leaderboard({ myUsername }) {
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+function Leaderboard() {   // ← Removed { myUsername }
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
-  const realMyName = currentUser?.name || myUsername;
+  const realMyName = currentUser?.name;
 
   useEffect(() => {
     fetchLeaderboard();
@@ -68,9 +70,30 @@ function Leaderboard({ myUsername }) {
 
   const medal = (i) => ['🥇','🥈','🥉'][i] || `#${i + 1}`;
 
-  const getDisplayName = (row) => {
-    return row.real_name || 'Player';
-  };
+  return (
+    <div className="w-full max-w-sm mt-4 bg-white rounded-3xl shadow-xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="font-black text-gray-900 text-base">🏆 Leaderboard</p>
+        <button onClick={fetchLeaderboard} className="text-xs text-blue-500 font-bold">Refresh</button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 size={20} className="animate-spin text-gray-300" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="text-gray-400 text-sm text-center py-6">No games played yet</p>
+      ) : (
+        <div className="space-y-2">
+          <div className="grid grid-cols-5 text-[10px] font-black text-gray-400 uppercase tracking-wider px-2 mb-1">
+            <span className="col-span-2">Player</span>
+            <span className="text-center">W</span>
+            <span className="text-center">D</span>
+            <span className="text-center">Win%</span>
+          </div>
+
+
+
 
   return (
     <div className="w-full max-w-sm mt-4 bg-white rounded-3xl shadow-xl border border-gray-100 p-5">
@@ -317,7 +340,7 @@ function Lobby({ username, onJoinGame }) {
         )}
       </div>
 
-      <Leaderboard myUsername={username} />
+      <Leaderboard />
     </div>
   );
 }
@@ -385,51 +408,55 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     setChatText('');
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   };
+ 
+const updateLeaderboard = async (winnerSymbol, isDraw) => {
+  const p1 = game.player1;
+  const p2 = game.player2;
+  if (!p1 || !p2) return;
 
-  const updateLeaderboard = async (winnerSymbol, isDraw) => {
-    const p1 = game.player1;
-    const p2 = game.player2;
-    if (!p1 || !p2) return;
+  const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
+  const myRealName = currentUser?.name;
 
-    const winnerName = isDraw ? null : (winnerSymbol === 'X' ? p1 : p2);
-    const loserName  = isDraw ? null : (winnerSymbol === 'X' ? p2 : p1);
+  const upsert = async (name, win, loss, draw) => {
+    // Try to find existing row
+    const { data: existing } = await supabase
+      .from('ttt_leaderboard')
+      .select('*')
+      .eq('real_name', name)
+      .single();
 
-    // Try to get real name for current player from localStorage
-    const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
-    const myRealName = currentUser?.name;
-
-    const upsert = async (name, win, loss, draw) => {
-      const { data: existing } = await supabase
-        .from('ttt_leaderboard').select('*').eq('real_name', name).single();
-
-
-         if (existing) {
-        await supabase.from('ttt_leaderboard').update({
-          wins: existing.wins + win,
-          losses: existing.losses + loss,
-          draws: existing.draws + draw,
-          total_games: existing.total_games + 1,
-          updated_at: new Date().toISOString(),
-        }).eq('real_name', name);
-      } else {
-        await supabase.from('ttt_leaderboard').insert({
-          real_name: name,
-          wins: win,
-          losses: loss,
-          draws: draw,
-          total_games: 1,
-        });
-      }
-    };
-
-    if (isDraw) {
-      await upsert(p1, 0, 0, 1);
-      await upsert(p2, 0, 0, 1);
+    if (existing) {
+      await supabase.from('ttt_leaderboard').update({
+        wins: existing.wins + win,
+        losses: existing.losses + loss,
+        draws: existing.draws + draw,
+        total_games: existing.total_games + 1,
+        real_name: name,                    // Force correct real name (fixes old rows)
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id);             // Better to use id for update
     } else {
-      await upsert(winnerName, 1, 0, 0);
-      await upsert(loserName, 0, 1, 0);
+      await supabase.from('ttt_leaderboard').insert({
+        real_name: name,
+        wins: win,
+        losses: loss,
+        draws: draw,
+        total_games: 1,
+      });
     }
   };
+
+  if (isDraw) {
+    await upsert(p1, 0, 0, 1);
+    await upsert(p2, 0, 0, 1);
+  } else {
+    const winnerName = winnerSymbol === 'X' ? p1 : p2;
+    const loserName = winnerSymbol === 'X' ? p2 : p1;
+    
+    await upsert(winnerName, 1, 0, 0);
+    await upsert(loserName, 0, 1, 0);
+  }
+};
+  
 
   const handleClick = async (index) => {
     if (!isMyTurn || board[index] !== '' || winner || isDraw) return;
