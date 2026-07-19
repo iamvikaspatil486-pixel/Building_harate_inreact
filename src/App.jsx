@@ -15,6 +15,7 @@ import Huduku from './pages/Huduku'
 import ResourceDetail from './pages/ResourceDetail'
 import GameList from './components/gamelist'
 import TicTacToe from './games/tictactoe'
+import MiniOmegle from './pages/miniomegle'
 import { ShieldAlert } from 'lucide-react';
 import OneSignal from 'react-onesignal'; // 🚀 Added OneSignal SDK Integration
 
@@ -115,6 +116,7 @@ function AppLayout({ session, setSession }) {
         <Route path="/profile" element={session ? <Profile /> : <Navigate to="/login" replace />} />     
        <Route path="/gamelist" element={session ? <GameList/> : <Navigate to="/login" replace />} />
         <Route path="/tictactoe" element={session ? <TicTacToe/> : <Navigate to="/login" replace />} />
+      <Route path="/miniomegle" element={session ? <MiniOmegle/> : <Navigate to="/login" replace />} />
         
         {/* Catch-all global fallback */}
 <Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
