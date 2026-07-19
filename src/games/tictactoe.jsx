@@ -40,23 +40,19 @@ function FloatingEmoji({ item }) {
 }
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
-// ── Leaderboard ───────────────────────────────────────────────────────────────
-function Leaderboard() {   // ← Removed { myUsername }
+function Leaderboard({ myUsername }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
-  const realMyName = currentUser?.name;
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+  useEffect(() => { fetchLeaderboard(); }, []);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
     const { data } = await supabase
       .from('ttt_leaderboard')
-      .select('real_name, wins, losses, draws, total_games')
+      .select('student_id, full_name, wins, losses, draws, total_games')
       .order('wins', { ascending: false })
       .limit(10);
     setRows(data || []);
@@ -92,42 +88,15 @@ function Leaderboard() {   // ← Removed { myUsername }
             <span className="text-center">Win%</span>
           </div>
 
-
-
-
-  return (
-    <div className="w-full max-w-sm mt-4 bg-white rounded-3xl shadow-xl border border-gray-100 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <p className="font-black text-gray-900 text-base">🏆 Leaderboard</p>
-        <button onClick={fetchLeaderboard} className="text-xs text-blue-500 font-bold">Refresh</button>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-6">
-          <Loader2 size={20} className="animate-spin text-gray-300" />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="text-gray-400 text-sm text-center py-6">No games played yet</p>
-      ) : (
-        <div className="space-y-2">
-          {/* Header */}
-          <div className="grid grid-cols-5 text-[10px] font-black text-gray-400 uppercase tracking-wider px-2 mb-1">
-            <span className="col-span-2">Player</span>
-            <span className="text-center">W</span>
-            <span className="text-center">D</span>
-            <span className="text-center">Win%</span>
-          </div>
-
           {rows.map((row, i) => {
-            const displayName = getDisplayName(row);
-             const isMe = realMyName && (displayName === realMyName);
+            const isMe = row.student_id === currentUser?.id;
             return (
-              <div key={row.real_name || i}
+              <div key={row.student_id || i}
                 className={`grid grid-cols-5 items-center px-3 py-2.5 rounded-2xl ${isMe ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
                 <div className="col-span-2 flex items-center gap-2 min-w-0">
                   <span className="text-sm flex-shrink-0">{medal(i)}</span>
                   <span className={`text-xs font-bold truncate ${isMe ? 'text-blue-600' : 'text-gray-800'}`}>
-                    {displayName}{isMe ? ' (you)' : ''}
+                    {row.full_name || 'Unknown'}{isMe ? ' (you)' : ''}
                   </span>
                 </div>
                 <span className="text-center text-xs font-black text-emerald-600">{row.wins}</span>
@@ -340,7 +309,7 @@ function Lobby({ username, onJoinGame }) {
         )}
       </div>
 
-      <Leaderboard />
+      <Leaderboard myUsername={username} />
     </div>
   );
 }
@@ -408,55 +377,61 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     setChatText('');
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   };
- 
-const updateLeaderboard = async (winnerSymbol, isDraw) => {
-  const p1 = game.player1;
-  const p2 = game.player2;
-  if (!p1 || !p2) return;
 
-  const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
-  const myRealName = currentUser?.name;
+  const updateLeaderboard = async (winnerSymbol, isDraw) => {
+    const p1Id = game.player1_id;
+    const p2Id = game.player2_id;
+    if (!p1Id || !p2Id) return;
 
-  const upsert = async (name, win, loss, draw) => {
-    // Try to find existing row
-    const { data: existing } = await supabase
-      .from('ttt_leaderboard')
-      .select('*')
-      .eq('real_name', name)
-      .single();
+    // Fetch real names from students table
+    const { data: students } = await supabase
+      .from('students')
+      .select('id, full_name')
+      .in('id', [p1Id, p2Id]);
 
-    if (existing) {
-      await supabase.from('ttt_leaderboard').update({
-        wins: existing.wins + win,
-        losses: existing.losses + loss,
-        draws: existing.draws + draw,
-        total_games: existing.total_games + 1,
-        real_name: name,                    // Force correct real name (fixes old rows)
-        updated_at: new Date().toISOString(),
-      }).eq('id', existing.id);             // Better to use id for update
+    const getName = (id) => students?.find((s) => s.id === id)?.full_name || 'Unknown';
+
+    const p1Name = getName(p1Id);
+    const p2Name = getName(p2Id);
+
+    const winnerName = isDraw ? null : (winnerSymbol === 'X' ? p1Name : p2Name);
+    const loserName  = isDraw ? null : (winnerSymbol === 'X' ? p2Name : p1Name);
+    const winnerId   = isDraw ? null : (winnerSymbol === 'X' ? p1Id : p2Id);
+    const loserId    = isDraw ? null : (winnerSymbol === 'X' ? p2Id : p1Id);
+
+    const upsert = async (studentId, fullName, win, loss, draw) => {
+      const { data: existing } = await supabase
+        .from('ttt_leaderboard')
+        .select('*')
+        .eq('student_id', studentId)
+        .single();
+
+      if (existing) {
+        await supabase.from('ttt_leaderboard').update({
+          full_name: fullName,
+          wins: existing.wins + win,
+          losses: existing.losses + loss,
+          draws: existing.draws + draw,
+          total_games: existing.total_games + 1,
+          updated_at: new Date().toISOString(),
+        }).eq('student_id', studentId);
+      } else {
+        await supabase.from('ttt_leaderboard').insert({
+          student_id: studentId,
+          full_name: fullName,
+          wins: win, losses: loss, draws: draw, total_games: 1,
+        });
+      }
+    };
+
+    if (isDraw) {
+      await upsert(p1Id, p1Name, 0, 0, 1);
+      await upsert(p2Id, p2Name, 0, 0, 1);
     } else {
-      await supabase.from('ttt_leaderboard').insert({
-        real_name: name,
-        wins: win,
-        losses: loss,
-        draws: draw,
-        total_games: 1,
-      });
+      await upsert(winnerId, winnerName, 1, 0, 0);
+      await upsert(loserId,  loserName,  0, 1, 0);
     }
   };
-
-  if (isDraw) {
-    await upsert(p1, 0, 0, 1);
-    await upsert(p2, 0, 0, 1);
-  } else {
-    const winnerName = winnerSymbol === 'X' ? p1 : p2;
-    const loserName = winnerSymbol === 'X' ? p2 : p1;
-    
-    await upsert(winnerName, 1, 0, 0);
-    await upsert(loserName, 0, 1, 0);
-  }
-};
-  
 
   const handleClick = async (index) => {
     if (!isMyTurn || board[index] !== '' || winner || isDraw) return;
@@ -472,6 +447,7 @@ const updateLeaderboard = async (winnerSymbol, isDraw) => {
       winner: newWinner,
       status: newWinner || newDraw ? 'finished' : 'playing',
     }).eq('id', game.id);
+    // Only the winning/drawing move triggers leaderboard update (avoid double update)
     if (newWinner || newDraw) {
       await updateLeaderboard(newWinner, newDraw);
     }
@@ -485,14 +461,14 @@ const updateLeaderboard = async (winnerSymbol, isDraw) => {
     }).eq('id', game.id);
   };
 
-  const statusText = () => {
+const statusText = () => {
     if (!game.player2) return 'Waiting for opponent…';
-    if (winner) return winner === mySymbol ? '🎉 You won!' : `😂 ${opponentUsername} won`;
+    if (winner) return winner === mySymbol ? '🎉 You won!' : `😢 ${opponentUsername} won`;
     if (isDraw) return "🤝 It's a draw!";
     return isMyTurn ? '🟢 Your turn' : `⏳ ${opponentUsername}'s turn`;
   };
 
- return (
+  return (
     <>
       <style>{`
         @keyframes floatUp {
@@ -506,7 +482,7 @@ const updateLeaderboard = async (winnerSymbol, isDraw) => {
 
       <div className="flex flex-col min-h-screen bg-gray-50">
 
-    {/* Header */}
+        {/* Header */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-2">
           <button onClick={onLeave} className="p-2 rounded-xl bg-white border border-gray-200 text-gray-500 active:scale-90 transition">
             <ArrowLeft size={18} />
@@ -581,29 +557,22 @@ const updateLeaderboard = async (winnerSymbol, isDraw) => {
           </div>
 
           {/* Chat input */}
-         <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100 w-full bg-white">
-  
-  {/* Send button moved to the LEFT */}
-  <button 
-    onClick={sendChat} 
-    disabled={!chatText.trim()}
-    className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition flex-shrink-0"
-  >
-    <Send size={15} />
-  </button>
+          <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
+            <input
+              value={chatText}
+              onChange={(e) => setChatText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+              placeholder="Type a message…"
+              className="flex-1 bg-gray-50 rounded-full px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none"
+            />
+            <button onClick={sendChat} disabled={!chatText.trim()}
+              className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition">
+              <Send size={13} />
+            </button>
+          </div>
+        </div>
 
-  {/* Input bar fills remaining space (full width) */}
-  <input
-    value={chatText}
-    onChange={(e) => setChatText(e.target.value)}
-    onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-    placeholder="Type a message…"
-    className="flex-1 bg-gray-50 rounded-full px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none w-full"
-  />
-</div>
-</div>
-</div>     
-
+      </div>
     </>
   );
 }
