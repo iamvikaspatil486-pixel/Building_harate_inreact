@@ -6,7 +6,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ArrowLeft, MapPin, MapPinOff, Loader2, Navigation } from 'lucide-react';
 
-// Fix default leaflet marker icons broken by Vite
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -14,7 +13,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-// Custom avatar marker
 const makeAvatarIcon = (letter, color = '#3b82f6', isMe = false) =>
   L.divIcon({
     className: '',
@@ -42,9 +40,8 @@ const AVATAR_COLORS = [
   'linear-gradient(135deg,#ec4899,#db2777)',
   'linear-gradient(135deg,#06b6d4,#0891b2)',
 ];
-const avatarColor = (name = '') => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+const avatarColor = (name = '') => AVATAR_COLORS[(name?.charCodeAt?.(0) || 0) % AVATAR_COLORS.length];
 
-// Fly to location helper component
 function FlyTo({ position }) {
   const map = useMap();
   useEffect(() => {
@@ -67,75 +64,48 @@ export default function Kuchikus() {
   const [myLocation, setMyLocation] = useState(null);
   const [flyTo, setFlyTo] = useState(null);
   const [error, setError] = useState('');
-  const [mapCenter] = useState([14.4426, 76.9558]); // Karnataka default
+  const [mapCenter] = useState([14.4426, 76.9558]);
 
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const batch = JSON.parse(localStorage.getItem('selectedBatch') || 'null');
   const batchId = batch?.batchId;
 
-  useEffect(() => {
-    if (!currentUser?.id) return;
-    initData();
+  const clearWatch = useCallback(() => {
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
 
-    const ch = supabase.channel(`kuchikus-${batchId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'students' }, (payload) => {
-        const s = payload.new;
-        if (s.id === currentUser.id) return;
-        if (!s.location_sharing || !s.latitude) {
-          setBatchmates((prev) => prev.filter((m) => m.id !== s.id));
-        } else {
-          setBatchmates((prev) => {
-            const exists = prev.find((m) => m.id === s.id);
-            if (exists) return prev.map((m) => m.id === s.id ? { ...m, ...s } : m);
-            return [...prev, s];
-          });
-        }
-      })
-      .subscribe();
+  const pushLocation = useCallback(async (lat, lng) => {
+    await supabase.from('students').update({
+      latitude: lat,
+      longitude: lng,
+      location_sharing: true,
+      location_updated_at: new Date().toISOString(),
+    }).eq('id', currentUser.id);
+  }, [currentUser?.id]);
 
-    return () => {
-      supabase.removeChannel(ch);
-      clearWatch();
-    };
-  }, [currentUser?.id, batchId]);
-
-  const initData = async () => {
-    setLoading(true);
-    const { data: me } = await supabase
-      .from('students').select('location_sharing, latitude, longitude')
-      .eq('id', currentUser.id).single();
-
-    if (me?.location_sharing) {
-      setSharing(true);
-      if (me.latitude && me.longitude) {
-        setMyLocation([me.latitude, me.longitude]);
-      }
-      startWatch();
+  const fetchBatchmates = useCallback(async () => {
+    if (!batchId || !currentUser?.id) {
+      setBatchmates([]);
+      return;
     }
 
-    await fetchBatchmates();
-    setLoading(false);
-  };
-
-  const fetchBatchmates = async () => {
-    if (!batchId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('students')
       .select('id, full_name, latitude, longitude, location_sharing')
       .eq('batch_id', batchId)
       .eq('location_sharing', true)
       .neq('id', currentUser.id)
       .not('latitude', 'is', null);
-    setBatchmates(data || []);
-  };
 
-  const pushLocation = useCallback(async (lat, lng) => {
-    await supabase.from('students').update({
-      latitude: lat, longitude: lng,
-      location_sharing: true,
-      location_updated_at: new Date().toISOString(),
-    }).eq('id', currentUser.id);
-  }, [currentUser?.id]);
+    if (!error) setBatchmates(data || []);
+  }, [batchId, currentUser?.id]);
 
   const startWatch = useCallback(() => {
     if (!navigator.geolocation) {
@@ -152,7 +122,9 @@ export default function Kuchikus() {
     const onErr = () => setError('Could not get location. Check permissions.');
 
     watchIdRef.current = navigator.geolocation.watchPosition(onPos, onErr, {
-      enableHighAccuracy: true, maximumAge: 10000, timeout: 15000,
+      enableHighAccuracy: true,
+      maximumAge: 10000,
+      timeout: 15000,
     });
 
     intervalRef.current = setInterval(() => {
@@ -160,18 +132,75 @@ export default function Kuchikus() {
     }, INTERVAL);
   }, [pushLocation]);
 
-  const clearWatch = useCallback(() => {
-    if (watchIdRef.current) { navigator.geolocation.clearWatch(watchIdRef.current); watchIdRef.current = null; }
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-  }, []);
-
   const stopSharing = useCallback(async () => {
     clearWatch();
     setMyLocation(null);
     await supabase.from('students').update({
-      location_sharing: false, latitude: null, longitude: null,
+      location_sharing: false,
+      latitude: null,
+      longitude: null,
     }).eq('id', currentUser.id);
   }, [clearWatch, currentUser?.id]);
+
+  const initData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    if (!currentUser?.id) {
+      setLoading(false);
+      setError('No user found.');
+      return;
+    }
+
+    const { data: me } = await supabase
+      .from('students')
+      .select('location_sharing, latitude, longitude')
+      .eq('id', currentUser.id)
+      .single();
+
+    if (me?.location_sharing) {
+      setSharing(true);
+      if (me.latitude && me.longitude) setMyLocation([me.latitude, me.longitude]);
+      startWatch();
+    }
+
+    await fetchBatchmates();
+    setLoading(false);
+  }, [currentUser?.id, fetchBatchmates, startWatch]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    initData();
+
+    const ch = supabase
+      .channel(`kuchikus-${batchId || 'all'}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'students' },
+        (payload) => {
+          const s = payload.new;
+          if (s.id === currentUser.id) return;
+          if (batchId && s.batch_id !== batchId) return;
+
+          if (!s.location_sharing || !s.latitude || !s.longitude) {
+            setBatchmates((prev) => prev.filter((m) => m.id !== s.id));
+          } else {
+            setBatchmates((prev) => {
+              const exists = prev.find((m) => m.id === s.id);
+              if (exists) return prev.map((m) => (m.id === s.id ? { ...m, ...s } : m));
+              return [...prev, s];
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+      clearWatch();
+    };
+  }, [currentUser?.id, batchId, clearWatch, initData]);
 
   const toggleSharing = async () => {
     setToggling(true);
@@ -185,7 +214,7 @@ export default function Kuchikus() {
         setSharing(true);
         await fetchBatchmates();
       }
-    } catch (err) {
+    } catch {
       setError('Failed to toggle location.');
     } finally {
       setToggling(false);
@@ -199,7 +228,11 @@ export default function Kuchikus() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-950">
       <style>{`
-        .leaflet-container { background: #1a1a2e; }
+        .leaflet-container {
+          background: #1a1a2e;
+          height: 100%;
+          width: 100%;
+        }
         .leaflet-popup-content-wrapper {
           border-radius: 12px !important;
           box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
@@ -209,10 +242,11 @@ export default function Kuchikus() {
         .leaflet-popup-tip { display: none; }
       `}</style>
 
-      {/* Header */}
       <header className="flex items-center gap-3 px-4 h-14 border-b border-white/10 flex-shrink-0 bg-gray-950 z-[1000]">
-        <button onClick={() => navigate(-1)}
-          className="p-2 rounded-xl bg-white/10 text-white active:scale-90 transition">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-xl bg-white/10 text-white active:scale-90 transition"
+        >
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">
@@ -224,87 +258,82 @@ export default function Kuchikus() {
           </p>
         </div>
         {sharing && myLocation && (
-          <button onClick={centerOnMe}
-            className="p-2 rounded-xl bg-white/10 text-emerald-400 active:scale-90 transition">
+          <button
+            onClick={centerOnMe}
+            className="p-2 rounded-xl bg-white/10 text-emerald-400 active:scale-90 transition"
+          >
             <Navigation size={18} />
           </button>
         )}
       </header>
 
-      {/* Map */}
-      <div className="flex-1 relative">
-        {loading ? (
-          <div className="absolute inset-0 bg-gray-950 flex items-center justify-center">
+      <div className="flex-1 relative min-h-0">
+        <MapContainer
+          center={myLocation || mapCenter}
+          zoom={13}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
+          <TileLayer
+            url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png"
+            subdomains={['a', 'b', 'c', 'd']}
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          />
+
+          {flyTo && <FlyTo position={flyTo} />}
+
+          {myLocation && (
+            <Marker
+              position={myLocation}
+              icon={makeAvatarIcon((currentUser?.name || 'Me')[0].toUpperCase(), '', true)}
+            >
+              <Popup>
+                <div style={{ padding: '8px 12px', fontFamily: 'sans-serif', minWidth: 100 }}>
+                  <p style={{ fontWeight: 800, fontSize: 13, margin: '0 0 2px' }}>
+                    {currentUser?.name || 'You'}
+                  </p>
+                  <p style={{ fontSize: 10, color: '#10b981', margin: 0 }}>📍 You're here</p>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {batchmates.map((s) => (
+            <Marker
+              key={s.id}
+              position={[s.latitude, s.longitude]}
+              icon={makeAvatarIcon((s.full_name || '?')[0].toUpperCase(), avatarColor(s.full_name))}
+            >
+              <Popup>
+                <div style={{ padding: '8px 12px', fontFamily: 'sans-serif', minWidth: 120 }}>
+                  <p style={{ fontWeight: 800, fontSize: 13, margin: '0 0 2px' }}>
+                    {s.full_name || 'Student'}
+                  </p>
+                  <p style={{ fontSize: 10, color: '#9ca3af', margin: 0 }}>📍 Sharing location</p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+
+        {loading && (
+          <div className="absolute inset-0 bg-gray-950 flex items-center justify-center z-[1000]">
             <Loader2 size={28} className="animate-spin text-blue-400" />
           </div>
-        ) : (
-          <MapContainer
-            center={myLocation || mapCenter}
-            zoom={13}
-            style={{ height: '100%', width: '100%' }}
-            zoomControl={false}
-          >
-          <TileLayer
-  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
-  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/">CARTO</a>'
-/>
-
-            {flyTo && <FlyTo position={flyTo} />}
-
-            {/* My marker */}
-            {myLocation && (
-              <Marker
-                position={myLocation}
-                icon={makeAvatarIcon((currentUser?.name || 'Me')[0].toUpperCase(), '', true)}
-              >
-                <Popup>
-                  <div style={{ padding: '8px 12px', fontFamily: 'sans-serif', minWidth: 100 }}>
-                    <p style={{ fontWeight: 800, fontSize: 13, margin: '0 0 2px' }}>
-                      {currentUser?.name || 'You'}
-                    </p>
-                    <p style={{ fontSize: 10, color: '#10b981', margin: 0 }}>📍 You're here</p>
-                  </div>
-                </Popup>
-              </Marker>
-            )}
-
-            {/* Batchmate markers */}
-            {batchmates.map((s) => (
-              <Marker
-                key={s.id}
-                position={[s.latitude, s.longitude]}
-                icon={makeAvatarIcon(
-                  (s.full_name || '?')[0].toUpperCase(),
-                  avatarColor(s.full_name)
-                )}
-              >
-                <Popup>
-                  <div style={{ padding: '8px 12px', fontFamily: 'sans-serif', minWidth: 120 }}>
-                    <p style={{ fontWeight: 800, fontSize: 13, margin: '0 0 2px' }}>{s.full_name || 'Student'}</p>
-                    <p style={{ fontSize: 10, color: '#9ca3af', margin: 0 }}>📍 Sharing location</p>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
         )}
 
-        {/* Error */}
         {error && (
           <div className="absolute top-3 left-3 right-3 z-[1000] bg-red-500/90 text-white text-xs font-bold px-4 py-2.5 rounded-xl">
             {error}
           </div>
         )}
 
-        {/* Toggle pill */}
         <div className="absolute bottom-6 left-0 right-0 flex justify-center z-[1000] px-4">
           <button
             onClick={toggleSharing}
             disabled={toggling}
             className={`flex items-center gap-3 px-6 py-3.5 rounded-full font-black text-sm shadow-2xl transition-all active:scale-95 disabled:opacity-60 ${
-              sharing
-                ? 'bg-emerald-500 text-white'
-                : 'bg-white text-gray-900'
+              sharing ? 'bg-emerald-500 text-white' : 'bg-white text-gray-900'
             }`}
           >
             {toggling
@@ -322,4 +351,3 @@ export default function Kuchikus() {
     </div>
   );
 }
-
