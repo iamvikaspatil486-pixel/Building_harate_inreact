@@ -16,9 +16,12 @@
     "@supabase/supabase-js": "^2.106.2",
     "ecctrl": "^2.0.0",
     "firebase": "^12.14.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.17.0",
+    "mapbox-gl": "^3.27.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-leaflet": "^5.0.0",
     "react-onesignal": "^3.5.5",
     "react-router-dom": "^7.16.0",
     "three": "^0.185.1"
@@ -33,7 +36,7 @@
     "vite": "^5.3.1",
     "vite-plugin-pwa": "^0.21.1"
   },
-"overrides": {
+  "overrides": {
     "react-nipple": {
       "react": "$react"
     }

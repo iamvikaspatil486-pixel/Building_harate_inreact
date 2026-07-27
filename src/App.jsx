@@ -14,6 +14,7 @@ import Navigation from './components/navigation';
 import Huduku from './pages/Huduku'
 import ResourceDetail from './pages/ResourceDetail'
 import GameList from './components/gamelist'
+import Kuchikus from './pages/kuchikus'
 import TicTacToe from './games/tictactoe'
 import MiniOmegle from './pages/miniomegle'
 import { ShieldAlert } from 'lucide-react';
@@ -117,6 +118,8 @@ function AppLayout({ session, setSession }) {
        <Route path="/gamelist" element={session ? <GameList/> : <Navigate to="/login" replace />} />
         <Route path="/tictactoe" element={session ? <TicTacToe/> : <Navigate to="/login" replace />} />
       <Route path="/miniomegle" element={session ? <MiniOmegle/> : <Navigate to="/login" replace />} />
+      <Route path="/kuchikus" element={session ? <Kuchikus/> : <Navigate to="/login" replace />} />
+
         
         {/* Catch-all global fallback */}
 <Route path="*" element={<Navigate to={session ? "/home" : "/"} replace />} />
