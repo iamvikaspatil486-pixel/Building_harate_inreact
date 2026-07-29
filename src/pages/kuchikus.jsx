@@ -48,38 +48,29 @@ const timeAgo = (ts) => {
     return 'Unknown';
   }
 };
-
-// Improved reverse geocoding
-const getLocationName = async (lat, lng) => {
+async function getLocationName(lat, lng) {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=\( {lat}&lon= \){lng}&zoom=16&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`,
       {
         headers: {
-          'User-Agent': 'StudentsHarate/1.0 (batchmates-map)',
-          'Accept-Language': 'en'
+          'User-Agent': 'StudentsHarate/1.0 (studentsharate.me)',
         }
       }
     );
-
-    if (!res.ok) throw new Error('Failed');
-
     const data = await res.json();
-    const address = data.address || {};
-
-    const parts = [
-      address.suburb || address.neighbourhood || address.residential,
-      address.city || address.town || address.village,
-      address.state
-    ].filter(Boolean);
-
-    return parts.length > 0
-      ? parts.join(', ')
-      : (data.display_name?.split(',').slice(0, 2).join(', ') || 'Unknown location');
+    const a = data.address;
+    // Priority: village → hamlet → suburb → town → city
+    const area = a.village || a.hamlet || a.suburb || a.neighbourhood || 
+                 a.town || a.city_district || a.city || a.county || '';
+    const state = a.state || '';
+    return [area, state].filter(Boolean).join(', ') || 'Unknown location';
   } catch (err) {
+    console.error('Nominatim error:', err);
     return 'Location unavailable';
   }
-};
+}
+
 
 export default function BatchMap() {
   const navigate = useNavigate();
