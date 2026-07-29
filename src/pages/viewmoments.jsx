@@ -4,11 +4,22 @@ import { supabase } from '../lib/supabase';
 import { Plus, X, Send, Loader2, Eye, EyeOff, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const timeAgo = (ts) => {
-  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (!ts) return 'just now';
+
+  // Convert UTC to local Indian time properly
+  const utcDate = new Date(ts);
+  const localDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000)); // Add IST offset
+
+  const now = new Date();
+  const diffMs = now - localDate;
+  const diffSeconds = Math.floor(diffMs / 1000);
+
+  if (diffSeconds < 0) return 'just now';           // Safety for small differences
+  if (diffSeconds < 60) return 'just now';
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
+  
+  return `${Math.floor(diffSeconds / 86400)}d ago`;
 };
 
 const GRAD = [
@@ -58,6 +69,7 @@ function UploadSheet({ onClose, onUploaded }) {
         image_url: urlData.publicUrl,
         caption: caption.trim() || null,
         show_name: showName,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
       });
       if (insertErr) throw insertErr;
       URL.revokeObjectURL(image.previewUrl);
@@ -294,11 +306,12 @@ export default function ViewMoments() {
     if (!batchId) { setLoading(false); return; }
 
     // Fetch all moments for this batch
-    const { data: allMoments } = await supabase
-      .from('moments')
-      .select('id, image_url, caption, show_name, created_at, student_id, students(full_name)')
-      .eq('batch_id', batchId)
-      .order('created_at', { ascending: false });
+   const { data: allMoments } = await supabase
+  .from('moments')
+  .select('id, image_url, caption, show_name, created_at, student_id, students(full_name)')
+  .eq('batch_id', batchId)
+  .gt('expires_at', new Date().toISOString())   // ← Add this line
+  .order('created_at', { ascending: false });
 
     // Fetch which ones current user has viewed
     const { data: views } = await supabase
