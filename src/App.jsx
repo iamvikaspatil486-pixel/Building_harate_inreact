@@ -7,6 +7,8 @@ import Register from './components/Register';
 import ResetPassword from './components/reset-password';
 import CreateBatch from './components/create-batch';
 import Home from './pages/home';
+import CreateMoment from './pages/createmoments';
+import ViewMoments from './pages/viewmoments';
 import AddPost from './pages/add-post';
 import Chat from './pages/chat';
 import Profile from './pages/profile';
@@ -119,6 +121,8 @@ function AppLayout({ session, setSession }) {
         <Route path="/tictactoe" element={session ? <TicTacToe/> : <Navigate to="/login" replace />} />
       <Route path="/miniomegle" element={session ? <MiniOmegle/> : <Navigate to="/login" replace />} />
       <Route path="/kuchikus" element={session ? <Kuchikus/> : <Navigate to="/login" replace />} />
+     <Route path="/createmoments" element={session ? <CreateMoment/> : <Navigate to="/login" replace />} />
+     <Route path="/viewmoments" element={session ? <ViewMoments/> : <Navigate to="/login" replace />} />
 
         
         {/* Catch-all global fallback */}
