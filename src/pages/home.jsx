@@ -181,6 +181,13 @@ function CommentSheet({ post, currentUser, onClose }) {
           <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${COMMENT_AVATAR_GRAD} flex items-center justify-center text-xs font-bold text-white flex-shrink-0`}>
             {(currentUser?.name || "?")[0].toUpperCase()}
           </div>
+  <button
+              onClick={sendComment}
+              disabled={!text.trim() || sending}
+              className="text-blue-600 disabled:opacity-40 hover:scale-110 active:scale-95 transition flex-shrink-0 p-1"
+            >
+              {sending ? <Loader2 size={24} className="animate-spin" /> : <Send size={26} />}
+            </button>
           <div className="flex-1 flex items-center bg-gray-100 rounded-full px-4 py-3 gap-3 min-w-0">
             <input
               ref={inputRef}
@@ -190,13 +197,6 @@ function CommentSheet({ post, currentUser, onClose }) {
               placeholder="Add a comment…"
               className="flex-1 min-w-0 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
             />
-            <button
-              onClick={sendComment}
-              disabled={!text.trim() || sending}
-              className="text-blue-600 disabled:opacity-40 hover:scale-110 active:scale-95 transition flex-shrink-0 p-1"
-            >
-              {sending ? <Loader2 size={24} className="animate-spin" /> : <Send size={26} />}
-            </button>
           </div>
         </div>
       </div>
