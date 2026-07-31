@@ -193,7 +193,7 @@ export default function BatchMap() {
           <ArrowLeft size={20} />
         </button>
 
-        <h1 className="text-lg font-bold tracking-wide">Batchmates MAP</h1>
+        <h1 className="text-lg font-bold tracking-wide">Kuchikus MAP</h1>
 
         <button
           onClick={toggleLocation}
@@ -223,7 +223,7 @@ export default function BatchMap() {
                 Not now
               </button>
               <button
-                onClick={() => updateMyLocation(true)}
+                onClick={() => {updateMyLocation(true); setShowPermissionPopup(false);}}
                 className="flex-1 py-3 bg-cyan-600 rounded-2xl font-bold"
               >
                 Turn On

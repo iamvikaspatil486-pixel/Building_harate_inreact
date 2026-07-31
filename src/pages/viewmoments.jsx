@@ -358,7 +358,7 @@ export default function ViewMoments() {
 
         {/* Header */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between">
-          <h1 className="font-bold text-gray-900 text-base">✨ Moments</h1>
+          <h1 className="font-bold text-gray-900 text-base">✨collage life Moments</h1>
           <button
             onClick={() => setShowUpload(true)}
             className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-full active:scale-95 transition"

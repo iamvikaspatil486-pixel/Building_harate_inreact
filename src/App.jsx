@@ -19,6 +19,7 @@ import GameList from './components/gamelist'
 import Kuchikus from './pages/kuchikus'
 import TicTacToe from './games/tictactoe'
 import MiniOmegle from './pages/miniomegle'
+import AdminVik from './aDmiiN'
 import { ShieldAlert } from 'lucide-react';
 import OneSignal from 'react-onesignal'; // 🚀 Added OneSignal SDK Integration
 
@@ -123,6 +124,7 @@ function AppLayout({ session, setSession }) {
       <Route path="/kuchikus" element={session ? <Kuchikus/> : <Navigate to="/login" replace />} />
      <Route path="/createmoments" element={session ? <CreateMoment/> : <Navigate to="/login" replace />} />
      <Route path="/viewmoments" element={session ? <ViewMoments/> : <Navigate to="/login" replace />} />
+   <Route path="/aDmiiN" element={session ? <AdminVik/> : <Navigate to="/login" replace />} />
 
         
         {/* Catch-all global fallback */}
