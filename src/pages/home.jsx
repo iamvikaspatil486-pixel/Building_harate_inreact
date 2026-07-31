@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight 
 } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
+
 
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts)) / 1000);
@@ -488,6 +490,7 @@ function Skeleton() {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -579,11 +582,22 @@ export default function Home() {
           </div>
         )}
 
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-center">
-          <div className="border border-blue-500/30 rounded-2xl px-4 h-9 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600">
-            <p className="font-extrabold text-white text-sm uppercase tracking-wider drop-shadow-sm">harate</p>
-          </div>
-        </header>
+     <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between">
+  {/* Left - Brand */}
+  <div className="border border-blue-500/30 rounded-2xl px-4 h-9 flex items-center shadow-[0_0_15px_rgba(37,99,235,0.2)] bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600">
+    <p className="font-extrabold text-white text-sm uppercase tracking-wider drop-shadow-sm">
+      harate
+    </p>
+  </div>
+
+  {/* Right - Moments Button */}
+  <button
+    onClick={() => navigate('/viewmoments')}
+    className="flex items-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-bold px-3.5 h-9 rounded-2xl shadow-md active:scale-95 transition"
+  >
+    ✨ Moments
+  </button>
+</header>
 
         {loading ? (
           <><Skeleton /><Skeleton /><Skeleton /></>
