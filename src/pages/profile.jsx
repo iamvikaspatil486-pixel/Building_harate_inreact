@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { Menu, X, Send, Check, LogOut, MessageSquare, AlertTriangle, Bell, BellOff } from 'lucide-react';
 import { setupNotifications } from "../lib/notifications";
 
-
 export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -17,14 +16,12 @@ export default function Profile() {
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('');
 
-  // ── Notification state ──
   const [notifPermission, setNotifPermission] = useState('default');
   const [notifLoading, setNotifLoading] = useState(false);
   const [hasFcmToken, setHasFcmToken] = useState(false);
 
   useEffect(() => {
     fetchProfileData();
-    // Check current permission state
     if ('Notification' in window) {
       setNotifPermission(Notification.permission);
     }
@@ -72,57 +69,40 @@ export default function Profile() {
     }
   }
 
-  // ── Enable notifications ──
   async function handleEnableNotifications() {
     setNotifLoading(true);
     try {
-      const permission = await Notification.requestPermission();
-      setNotifPermission(permission);
-      if (permission !== 'granted') {
-        setNotifLoading(false);
-        return;
-      }
-
-      const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-      if (!token) { setNotifLoading(false); return; }
-
-      const { error } = await supabase
+      await setupNotifications(student.id);
+      const { data } = await supabase
         .from('students')
-        .update({ fcm_token: token })
-        .eq('id', student.id);
-
-      if (!error) {
+        .select('fcm_token')
+        .eq('id', student.id)
+        .single();
+      if (data?.fcm_token) {
         setHasFcmToken(true);
-        setStudent(prev => ({ ...prev, fcm_token: token }));
+        setNotifPermission('granted');
       }
     } catch (err) {
-      console.error('Notification enable failed:', err);
+      console.error('Enable notifications failed:', err);
     } finally {
       setNotifLoading(false);
     }
   }
 
-  // ── Disable notifications (clear token from DB) ──
-async function handleEnableNotifications() {
-  setNotifLoading(true);
-  try {
-    await setupNotifications(student.id);
-    // Re-fetch to confirm token was saved
-    const { data } = await supabase
-      .from('students')
-      .select('fcm_token')
-      .eq('id', student.id)
-      .single();
-    if (data?.fcm_token) {
-      setHasFcmToken(true);
-      setNotifPermission('granted');
+  async function handleDisableNotifications() {
+    setNotifLoading(true);
+    try {
+      await supabase
+        .from('students')
+        .update({ fcm_token: null })
+        .eq('id', student.id);
+      setHasFcmToken(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setNotifLoading(false);
     }
-  } catch (err) {
-    console.error('Enable notifications failed:', err);
-  } finally {
-    setNotifLoading(false);
   }
-}
 
   async function handleSubmitFeedback() {
     if (!feedbackText.trim()) return;
@@ -153,156 +133,179 @@ async function handleEnableNotifications() {
   }
 
   const initialLetter = student?.full_name ? student.full_name.charAt(0).toUpperCase() : '?';
-
-  // Notification row label logic
   const notifEnabled = notifPermission === 'granted' && hasFcmToken;
 
   return (
-    <div className="min-h-screen bg-white text-slate-950 px-4 pt-4 pb-24 max-w-md mx-auto select-none font-sans overflow-y-auto relative">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white px-4 pt-5 pb-28 max-w-md mx-auto select-none font-sans relative overflow-x-hidden">
 
-      {/* ─── 1. HEADER ── */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
-        <p className="font-black text-sm uppercase tracking-wider bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 bg-clip-text text-transparent">
-          STUDENTS HARATE
+      {/* soft glow background */}
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-500/20 blur-[100px] rounded-full" />
+      <div className="pointer-events-none absolute bottom-20 right-0 w-56 h-56 bg-cyan-500/15 blur-[90px] rounded-full" />
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between mb-7 relative z-10">
+        <p className="font-black text-sm tracking-[0.2em] uppercase bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
+          HARATE
         </p>
-        <button onClick={() => setShowMenu(true)} className="p-1 text-slate-800 hover:text-slate-600 active:scale-90 transition-all">
-          <Menu size={22} className="stroke-[2.5]" />
+        <button
+          onClick={() => setShowMenu(true)}
+          className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
+        >
+          <Menu size={18} />
         </button>
       </div>
 
-      {/* ─── 2. AVATAR ── */}
-      <div className="flex items-center gap-6 px-1 mb-6">
-        <div className="relative flex-shrink-0">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 blur-md opacity-40" />
-          <div className="w-20 h-20 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 flex items-center justify-center p-[2.5px] shadow-sm relative z-10">
-            <div className="w-full h-full bg-slate-50 rounded-full flex items-center justify-center border-[1.5px] border-white">
-              <span className="text-2xl font-black text-slate-800 tracking-wide font-mono">{initialLetter}</span>
+      {/* PROFILE CARD */}
+      <div className="relative z-10 mb-6 p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-pink-500 blur-md opacity-60" />
+            <div className="relative w-20 h-20 rounded-full p-[2px] bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-pink-500">
+              <div className="w-full h-full rounded-full bg-slate-950 flex items-center justify-center">
+                <span className="text-2xl font-black">{initialLetter}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-black truncate leading-tight">
+              {student?.full_name || 'Loading...'}
+            </h2>
+            {student?.nickname && (
+              <p className="text-sm text-fuchsia-300 font-semibold truncate">
+                @{student.nickname.toLowerCase()}
+              </p>
+            )}
+            <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-white/10 border border-white/10 text-cyan-200">
+              Roll {student?.roll_no || '---'}
             </div>
           </div>
         </div>
-        <div className="flex-1 min-w-0 space-y-0.5">
-          <h2 className="text-base font-black tracking-tight text-slate-900 truncate">{student?.full_name || 'Loading...'}</h2>
-          {student?.nickname && <p className="text-xs text-blue-600 font-bold tracking-wide truncate">@{student.nickname.toLowerCase()}</p>}
-          <div className="inline-block px-2.5 py-0.5 bg-slate-100 rounded-full text-[10px] font-black text-slate-500 uppercase tracking-wider mt-1">
-            Roll: {student?.roll_no || '---'}
+      </div>
+
+      {/* PREMIUM ABOUT ME BOX */}
+      <div className="relative z-10 mb-6">
+        <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-fuchsia-300/80 mb-2 px-1">
+          About Me
+        </p>
+        <div className="relative rounded-3xl p-[1px] bg-gradient-to-r from-cyan-400/60 via-fuchsia-500/60 to-pink-500/60">
+          <div className="rounded-3xl bg-slate-950/80 backdrop-blur-xl p-4 min-h-[90px]">
+            <p className="text-sm text-slate-100 leading-relaxed whitespace-pre-wrap break-words">
+              {student?.bio || "No vibe written yet. Tap menu and drop your energy ✨"}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* ─── 3. BIO ── */}
-      <div className="px-1 mb-6 border-b border-slate-100 pb-5">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">about me 👇</p>
-        <p className="text-xs text-slate-700 leading-relaxed break-words whitespace-pre-wrap bg-slate-50/50 border border-slate-100 p-3 rounded-xl">
-          {student?.bio || "Tap the top-right menu to add your bio!"}
-        </p>
-      </div>
-
-      {/* ─── 4. FEEDBACK BUTTON ── */}
-      <div className="mt-4 px-1">
+      {/* FEEDBACK BUTTON */}
+      <div className="relative z-10 px-1">
         <button
           onClick={() => setShowFeedbackModal(true)}
-          className="w-full py-3 bg-slate-50 hover:bg-slate-100/80 active:scale-98 border border-slate-200/60 rounded-xl text-slate-700 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
+          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 border border-white/10 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition"
         >
-          <MessageSquare size={14} className="text-blue-600" />
+          <MessageSquare size={15} className="text-cyan-300" />
           Send App Feedback
         </button>
       </div>
 
-      {/* ─── 5. MENU DRAWER ── */}
+      {/* MENU DRAWER */}
       {showMenu && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-end justify-center px-4 animate-in fade-in duration-100">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center px-4">
           <div className="absolute inset-0" onClick={() => setShowMenu(false)} />
-          <div className="w-full max-w-sm bg-white border-t border-slate-100 rounded-t-3xl p-4 pb-6 z-10 space-y-1 transform animate-in slide-in-from-bottom duration-200">
-            <div className="w-9 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
+          <div className="w-full max-w-sm bg-slate-950 border border-white/10 rounded-t-3xl p-4 pb-7 z-10 space-y-1">
+            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
             <div className="flex items-center justify-between px-2 mb-2">
-              <p className="text-xs font-black uppercase text-slate-400 tracking-wider">Account Control</p>
-              <button onClick={() => setShowMenu(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Account</p>
+              <button onClick={() => setShowMenu(false)} className="text-slate-400">
+                <X size={16} />
+              </button>
             </div>
 
             <button
               onClick={() => { setShowMenu(false); setActiveModal('edit_nickname'); }}
-              className="w-full text-left py-3 px-3 hover:bg-slate-50 active:bg-slate-50 rounded-xl text-xs font-bold text-slate-800 transition"
+              className="w-full text-left py-3.5 px-3 rounded-2xl text-sm font-bold text-white hover:bg-white/5 transition"
             >
-              📝 Edit Personal Nickname
+              📝 Edit Nickname
             </button>
 
             <button
               onClick={() => { setShowMenu(false); setActiveModal('edit_bio'); }}
-              className="w-full text-left py-3 px-3 hover:bg-slate-50 active:bg-slate-50 rounded-xl text-xs font-bold text-slate-800 border-b border-slate-100 pb-3 transition"
+              className="w-full text-left py-3.5 px-3 rounded-2xl text-sm font-bold text-white hover:bg-white/5 transition border-b border-white/5"
             >
-              ✍️ Edit Profile Bio
+              ✍️ Edit About Me
             </button>
 
-            {/* ── Notification toggle row ── */}
             <button
               onClick={async () => {
                 setShowMenu(false);
-                if (notifEnabled) {
-                  await handleDisableNotifications();
-                } else {
-                  await handleEnableNotifications();
-                }
+                if (notifEnabled) await handleDisableNotifications();
+                else await handleEnableNotifications();
               }}
               disabled={notifLoading}
-              className="w-full text-left py-3 px-3 hover:bg-slate-50 active:bg-slate-50 rounded-xl text-xs font-bold border-b border-slate-100 pb-3 transition flex items-center justify-between"
+              className="w-full text-left py-3.5 px-3 rounded-2xl text-sm font-bold border-b border-white/5 transition flex items-center justify-between"
             >
               <span className="flex items-center gap-2">
-                {notifEnabled
-                  ? <BellOff size={14} className="text-red-500" />
-                  : <Bell size={14} className="text-blue-500" />
-                }
-                <span className={notifEnabled ? "text-red-600" : "text-slate-800"}>
-                  {notifLoading
-                    ? "Please wait..."
-                    : notifEnabled
-                      ? "Turn Off Notifications"
-                      : "Allow Notifications"
-                  }
+                {notifEnabled ? <BellOff size={15} className="text-rose-400" /> : <Bell size={15} className="text-cyan-300" />}
+                <span className={notifEnabled ? "text-rose-300" : "text-white"}>
+                  {notifLoading ? "Please wait..." : notifEnabled ? "Turn Off Notifications" : "Allow Notifications"}
                 </span>
               </span>
-              {/* Status pill */}
-              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                notifEnabled
-                  ? "bg-green-100 text-green-600"
-                  : "bg-slate-100 text-slate-400"
-              }`}>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${notifEnabled ? "bg-emerald-400/20 text-emerald-300" : "bg-white/10 text-slate-400"}`}>
                 {notifEnabled ? "ON" : "OFF"}
               </span>
             </button>
 
             <button
               onClick={() => { setShowMenu(false); setShowLogoutWarning(true); }}
-              className="w-full text-left py-3 px-3 hover:bg-red-50 active:bg-red-50 text-red-600 font-bold rounded-xl text-xs flex items-center gap-2 mt-2 transition"
+              className="w-full text-left py-3.5 px-3 rounded-2xl text-sm font-bold text-rose-400 flex items-center gap-2 mt-1"
             >
-              <LogOut size={14} />
-              Logout from Profile
+              <LogOut size={15} />
+              Logout
             </button>
           </div>
         </div>
       )}
 
-      {/* ─── 6. EDIT MODALS ── */}
+      {/* EDIT MODALS */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center px-6">
-          <div className="w-full max-w-xs bg-white border border-slate-100 rounded-2xl p-4 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-6">
+          <div className="w-full max-w-xs bg-slate-950 border border-white/10 rounded-3xl p-5 shadow-2xl">
             <h3 className="text-xs font-black tracking-wider text-slate-400 uppercase mb-3">
-              {activeModal === 'edit_nickname' ? 'Update Nickname' : 'Update Profile Bio'}
+              {activeModal === 'edit_nickname' ? 'Update Nickname' : 'Update About Me'}
             </h3>
+
             {activeModal === 'edit_nickname' ? (
-              <input type="text" maxLength={15} value={nickname} onChange={e => setNickname(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs outline-none text-slate-900 focus:border-blue-500"
-                placeholder="Type profile handle..." />
+              <input
+                type="text"
+                maxLength={15}
+                value={nickname}
+                onChange={e => setNickname(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 text-sm outline-none text-white focus:border-fuchsia-400"
+                placeholder="your vibe name..."
+              />
             ) : (
-              <textarea rows={4} maxLength={150} value={bio} onChange={e => setBio(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs outline-none text-slate-900 focus:border-blue-500 resize-none"
-                placeholder="Write a status..." />
+              <textarea
+                rows={4}
+                maxLength={150}
+                value={bio}
+                onChange={e => setBio(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 text-sm outline-none text-white focus:border-fuchsia-400 resize-none"
+                placeholder="Write your energy..."
+              />
             )}
+
             <div className="flex items-center justify-end gap-2 mt-4">
-              <button onClick={() => setActiveModal(null)} className="text-xs font-bold text-slate-500 px-3 py-1.5 rounded-lg bg-slate-100">Cancel</button>
+              <button onClick={() => setActiveModal(null)} className="text-xs font-bold text-slate-400 px-3 py-2 rounded-xl bg-white/5">
+                Cancel
+              </button>
               <button
-                onClick={() => activeModal === 'edit_nickname' ? handleUpdateField('nickname', nickname) : handleUpdateField('bio', bio)}
+                onClick={() =>
+                  activeModal === 'edit_nickname'
+                    ? handleUpdateField('nickname', nickname)
+                    : handleUpdateField('bio', bio)
+                }
                 disabled={loading}
-                className="text-xs font-black bg-blue-600 text-white px-3.5 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition"
+                className="text-xs font-black bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white px-4 py-2 rounded-xl flex items-center gap-1 active:scale-95 transition"
               >
                 <Check size={12} className="stroke-[3]" /> Save
               </button>
@@ -311,40 +314,54 @@ async function handleEnableNotifications() {
         </div>
       )}
 
-      {/* ─── 7. FEEDBACK MODAL ── */}
+      {/* FEEDBACK MODAL */}
       {showFeedbackModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center px-6 animate-in fade-in duration-150">
-          <div className="w-full max-w-xs bg-white border border-slate-100 rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-6">
+          <div className="w-full max-w-xs bg-slate-950 border border-white/10 rounded-3xl p-5 shadow-2xl">
             {!feedbackSubmitted ? (
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div className="flex items-center gap-1.5 text-slate-800">
-                    <MessageSquare size={14} className="text-blue-500" />
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <MessageSquare size={14} className="text-cyan-300" />
                     <h3 className="text-xs font-black uppercase tracking-wider">Send Feedback</h3>
                   </div>
-                  <button onClick={closeFeedbackWorkflow} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+                  <button onClick={closeFeedbackWorkflow} className="text-slate-400">
+                    <X size={16} />
+                  </button>
                 </div>
-                <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                  Students Harate is still being built. If you find bugs or have ideas, share them here!
+                <p className="text-[11px] text-slate-400 bg-white/5 p-3 rounded-2xl border border-white/5 leading-relaxed">
+                  Still building. Drop bugs or ideas here ✨
                 </p>
-                <div className="relative pt-1">
-                  <textarea rows={3} value={feedbackText} onChange={e => setFeedbackText(e.target.value)}
-                    placeholder="Report bugs, share ideas..."
-                    className="w-full bg-slate-50/60 border border-slate-200 rounded-xl p-3 pr-12 text-xs outline-none text-slate-900 focus:border-blue-500 transition resize-none" />
-                  <button onClick={handleSubmitFeedback} disabled={feedbackLoading || !feedbackText.trim()}
-                    className="absolute bottom-3 right-3 p-2 bg-blue-600 text-white rounded-xl active:scale-95 transition disabled:opacity-30">
-                    <Send size={11} />
+                <div className="relative">
+                  <textarea
+                    rows={3}
+                    value={feedbackText}
+                    onChange={e => setFeedbackText(e.target.value)}
+                    placeholder="Tell us something..."
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 pr-12 text-sm outline-none text-white focus:border-fuchsia-400 resize-none"
+                  />
+                  <button
+                    onClick={handleSubmitFeedback}
+                    disabled={feedbackLoading || !feedbackText.trim()}
+                    className="absolute bottom-3 right-3 p-2 bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white rounded-xl active:scale-95 transition disabled:opacity-30"
+                  >
+                    <Send size={12} />
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-2 animate-in fade-in zoom-in-95 duration-200">
-                <div className="w-10 h-10 bg-emerald-50 border border-emerald-200 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-600">
+              <div className="text-center py-2">
+                <div className="w-11 h-11 bg-emerald-400/15 border border-emerald-400/30 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-300">
                   <Check size={18} className="stroke-[3]" />
                 </div>
-                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Feedback Received</h3>
-                <p className="text-[11px] text-slate-500 mt-2.5 leading-relaxed px-1">Thanks! Feel free to share more anytime.</p>
-                <button onClick={closeFeedbackWorkflow} className="mt-4 w-full py-2 bg-slate-900 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 shadow-sm">
+                <h3 className="text-xs font-black uppercase tracking-wider">Feedback Received</h3>
+                <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                  Thanks! Keep the vibes coming.
+                </p>
+                <button
+                  onClick={closeFeedbackWorkflow}
+                  className="mt-4 w-full py-2.5 bg-white text-slate-950 font-black rounded-2xl text-xs uppercase tracking-wider active:scale-95 transition"
+                >
                   Close
                 </button>
               </div>
@@ -353,33 +370,35 @@ async function handleEnableNotifications() {
         </div>
       )}
 
-      {/* ─── 8. LOGOUT WARNING ── */}
+      {/* LOGOUT WARNING */}
       {showLogoutWarning && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center px-6 animate-in fade-in duration-100">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-6">
           <div className="absolute inset-0" onClick={() => setShowLogoutWarning(false)} />
-          <div className="w-full max-w-xs bg-white border border-slate-100 rounded-2xl p-5 text-center shadow-2xl relative z-10 animate-in zoom-in-95 duration-150">
-            <div className="w-10 h-10 bg-red-50 border border-red-100 rounded-full flex items-center justify-center mx-auto mb-3 text-red-500">
-              <AlertTriangle size={18} className="stroke-[2.5]" />
+          <div className="w-full max-w-xs bg-slate-950 border border-white/10 rounded-3xl p-5 text-center relative z-10">
+            <div className="w-11 h-11 bg-rose-400/15 border border-rose-400/30 rounded-full flex items-center justify-center mx-auto mb-3 text-rose-300">
+              <AlertTriangle size={18} />
             </div>
-            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Logout of Harate?</h3>
-            <p className="text-[11px] text-slate-500 mt-2 leading-relaxed px-1">
-              Are you sure? You'll need to enter your credentials again to access your batch.
+            <h3 className="text-xs font-black uppercase tracking-wider">Logout of Harate?</h3>
+            <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+              You’ll need to login again to access your batch.
             </p>
-            <div className="grid grid-cols-2 gap-2 mt-4 pt-1">
-              <button onClick={() => setShowLogoutWarning(false)}
-                className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95">
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button
+                onClick={() => setShowLogoutWarning(false)}
+                className="py-2.5 bg-white/5 text-slate-300 font-bold rounded-2xl text-xs uppercase tracking-wider active:scale-95"
+              >
                 Cancel
               </button>
-              <button onClick={handleLogout}
-                className="py-2.5 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 shadow-sm">
+              <button
+                onClick={handleLogout}
+                className="py-2.5 bg-rose-500 text-white font-black rounded-2xl text-xs uppercase tracking-wider active:scale-95"
+              >
                 Logout
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
-}
-
+}	
