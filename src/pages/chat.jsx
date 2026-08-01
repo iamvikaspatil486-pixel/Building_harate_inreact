@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause } from "lucide-react";
+import { CreatePollSheet, PollBubble } from '../components/chatpolls';
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause, BarChart2 } from "lucide-react";
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -349,6 +350,9 @@ export default function Chat() {
   const [replyTo, setReplyTo] = useState(null); // { id, username, message }
   const [attachOpen, setAttachOpen] = useState(false);
   const [showGifSheet, setShowGifSheet] = useState(false);
+//polls
+const [showPollSheet, setShowPollSheet] = useState(false);
+const [polls, setPolls] = useState({});  // pollId → poll data
 
   // Photo upload
   const [pendingPhoto, setPendingPhoto] = useState(null); // { file, previewUrl }
@@ -445,6 +449,14 @@ export default function Chat() {
       .eq("batch_id", batchId)
       .lt("created_at", cutoff)
       .in("type", ["image", "voice"]);
+  
+    const { data: pollData } = await supabase
+  .from('chat_polls')
+  .select('*')
+  .eq('batch_id', batchId);
+const pollMap = {};
+(pollData || []).forEach((p) => { pollMap[p.id] = p; });
+setPolls(pollMap);
 
     if (!stale?.length) return;
 
@@ -925,7 +937,13 @@ export default function Chat() {
                             onClick={() => window.open(msg.media_url, "_blank")}
                           />
                         </div>
-                      ) : msg.type === "voice" && msg.voice_url ? (
+                      ):msg.type === 'poll' && polls[msg.poll_id] ? (
+  <PollBubble
+    poll={polls[msg.poll_id]}
+    isMe={isMe}
+    username={username}
+  />
+) : msg.type === "voice" && msg.voice_url ? (
                         <button
                           onClick={() => togglePlay(msg.id, msg.voice_url)}
                           className={`flex items-center gap-3 px-4 py-3 rounded-3xl shadow-sm min-w-[180px] transition ${isMe ? "text-white" : "bg-[#1e293b] text-slate-100 border border-slate-800/40"}`}
@@ -1035,6 +1053,13 @@ export default function Chat() {
               </div>
               <span className="text-[10px] text-slate-500 font-semibold">Photo</span>
             </button>
+    <button onClick={() => { setShowPollSheet(true); setAttachOpen(false); }}
+  className="flex flex-col items-center gap-1 active:scale-90 transition">
+  <div className="w-11 h-11 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center">
+    <BarChart2 size={18} className="text-blue-400" />
+  </div>
+  <span className="text-[10px] text-slate-500 font-semibold">Poll</span>
+</button>
        <button
 onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
   className="flex flex-col items-center gap-1 active:scale-90 transition"
@@ -1169,6 +1194,22 @@ onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
           onPick={sendGif}
         />
       )}
+{showPollSheet && (
+  <CreatePollSheet
+    onClose={() => setShowPollSheet(false)}
+    onCreated={async (poll) => {
+      setPolls((prev) => ({ ...prev, [poll.id]: poll }));
+      // Insert a chat message linking to the poll
+      await supabase.from('chat_messages').insert({
+        message: '', username, batch_id: batchId,
+        user_id: currentUser?.id || null,
+        type: 'poll', poll_id: poll.id,
+      });
+    }}
+    username={username}
+    batchId={batchId}
+  />
+)}
 
     </div>
   );
