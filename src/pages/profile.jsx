@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Menu, X, Send, Check, LogOut, MessageSquare, AlertTriangle, Bell, BellOff } from 'lucide-react';
+import { Menu, X, Send, Check, LogOut, Search, MessageSquare, AlertTriangle, Bell, BellOff } from 'lucide-react';
 import { setupNotifications } from "../lib/notifications";
 
 export default function Profile() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -143,17 +145,30 @@ export default function Profile() {
       <div className="pointer-events-none absolute bottom-20 right-0 w-56 h-56 bg-cyan-500/15 blur-[90px] rounded-full" />
 
       {/* HEADER */}
-      <div className="flex items-center justify-between mb-7 relative z-10">
-        <p className="font-black text-sm tracking-[0.2em] uppercase bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
-          HARATE
-        </p>
-        <button
-          onClick={() => setShowMenu(true)}
-          className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
-        >
-          <Menu size={18} />
-        </button>
-      </div>
+     {/* HEADER */}
+<div className="flex items-center justify-between mb-7 relative z-10">
+  <p className="font-black text-sm tracking-[0.2em] uppercase bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
+    HARATE
+  </p>
+
+  <div className="flex items-center gap-2">
+    {/* Search Profile */}
+    <button
+      onClick={() => navigate('/searchprofile')}
+      className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
+    >
+      <Search size={18} />
+    </button>
+
+    {/* Menu */}
+    <button
+      onClick={() => setShowMenu(true)}
+      className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
+    >
+      <Menu size={18} />
+    </button>
+  </div>
+</div>
 
       {/* PROFILE CARD */}
       <div className="relative z-10 mb-6 p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl">
