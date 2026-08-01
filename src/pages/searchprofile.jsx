@@ -68,57 +68,56 @@ export default function SearchProfile() {
     setSearched(false);
   };
 
-   const StudentCard = ({ student, isBatchmate }) => (
-  <button
-    onClick={() => navigate(`/viewprofile/${student.id}`, { state: { student } })}
-    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/[0.08] active:scale-[0.99] transition text-left"
-  >
-    {/* Avatar */}
-    <div
-      className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${grad(student.full_name)} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-fuchsia-500/10`}
+  const StudentCard = ({ student, isBatchmate }) => (
+    <button
+      onClick={() => navigate(`/viewprofile/${student.id}`, { state: { student } })}
+      className="w-full flex items-center gap-3 p-3.5 rounded-3xl border border-white/10 bg-white/5 hover:bg-white/[0.08] active:scale-[0.99] transition text-left shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
     >
-      {student.full_name?.[0]?.toUpperCase() || '?'}
-    </div>
-
-    {/* Info */}
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-sm font-semibold text-white truncate">
-          {student.full_name}
-        </p>
-
-        {isBatchmate && (
-          <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-400/20 px-1.5 py-0.5 rounded-full">
-            Batchmate
-          </span>
-        )}
+      <div
+        className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${grad(student.full_name)} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-fuchsia-500/10`}
+      >
+        {student.full_name?.[0]?.toUpperCase() || '?'}
       </div>
 
-      {student.nickname && (
-        <p className="text-[11px] text-fuchsia-300 truncate mt-0.5">
-          @{student.nickname}
-        </p>
-      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-semibold text-white truncate">
+            {student.full_name}
+          </p>
 
-      {/* Roll no only for batchmates */}
-      {isBatchmate && student.roll_no && (
-        <p className="text-[11px] text-slate-500 mt-0.5">
-          Roll: {student.roll_no}
-        </p>
-      )}
-    </div>
-  </button>
-);
+          {isBatchmate && (
+            <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-400/20 px-1.5 py-0.5 rounded-full">
+              Batchmate
+            </span>
+          )}
+        </div>
+
+        {student.nickname && (
+          <p className="text-[11px] text-fuchsia-300 truncate mt-0.5">
+            @{student.nickname}
+          </p>
+        )}
+
+        {/* Roll only for batchmates */}
+        {isBatchmate && student.roll_no && (
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Roll: {student.roll_no}
+          </p>
+        )}
+      </div>
+    </button>
+  );
 
   const totalResults = batchmates.length + others.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white flex flex-col relative overflow-hidden">
+    <div className="min-h-screen w-full max-w-none bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white flex flex-col relative overflow-x-hidden">
+      {/* glow */}
       <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-500/20 blur-[110px] rounded-full" />
       <div className="pointer-events-none absolute bottom-24 right-0 w-56 h-56 bg-cyan-500/15 blur-[90px] rounded-full" />
 
       {/* Header */}
-      <header className="sticky top-0 z-10 px-4 py-3 bg-slate-950/70 backdrop-blur-xl border-b border-white/5 relative">
+      <header className="sticky top-0 z-10 w-full px-4 py-3 bg-slate-950/70 backdrop-blur-xl border-b border-white/5 relative">
         <div className="flex items-center gap-3 mb-3">
           <button
             onClick={() => navigate(-1)}
@@ -155,7 +154,7 @@ export default function SearchProfile() {
       </header>
 
       {/* Results */}
-      <main className="flex-1 pb-24 relative z-10">
+      <main className="flex-1 w-full pb-24 relative z-10">
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 size={22} className="animate-spin text-fuchsia-300" />
@@ -175,39 +174,41 @@ export default function SearchProfile() {
             <p className="text-slate-500 text-xs">Try a different name</p>
           </div>
         ) : (
-      <>
-  {batchmates.length > 0 && (
-    <div>
-      <div className="px-4 py-2 bg-cyan-500/10 border-b border-cyan-400/15">
-        <p className="text-[11px] font-black uppercase tracking-wider text-cyan-300">
-          Your Batch · {batchmates.length} result{batchmates.length > 1 ? 's' : ''}
-        </p>
-      </div>
+          <>
+            {/* Batchmates */}
+            {batchmates.length > 0 && (
+              <div className="w-full">
+                <div className="w-full px-4 pt-4 pb-2">
+                  <p className="text-[12px] font-semibold text-cyan-300/90">
+                    {batchmates.length} batchmate{batchmates.length > 1 ? 's' : ''} found
+                  </p>
+                </div>
 
-      <div className="px-4 py-3 space-y-2.5">
-        {batchmates.map((s) => (
-          <StudentCard key={s.id} student={s} isBatchmate={true} />
-        ))}
-      </div>
-    </div>
-  )}
+                <div className="w-full px-4 pb-4 space-y-2.5">
+                  {batchmates.map((s) => (
+                    <StudentCard key={s.id} student={s} isBatchmate={true} />
+                  ))}
+                </div>
+              </div>
+            )}
 
-  {others.length > 0 && (
-    <div>
-      <div className="px-4 py-2 bg-white/5 border-b border-white/5">
-        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-          Other Batches · {others.length} result{others.length > 1 ? 's' : ''}
-        </p>
-      </div>
+            {/* Other batches */}
+            {others.length > 0 && (
+              <div className="w-full">
+                <div className="w-full px-4 pt-2 pb-2">
+                  <p className="text-[12px] font-semibold text-slate-400">
+                    {others.length} from other batches
+                  </p>
+                </div>
 
-      <div className="px-4 py-3 space-y-2.5">
-        {others.map((s) => (
-          <StudentCard key={s.id} student={s} isBatchmate={false} />
-        ))}
-      </div>
-    </div>
-  )}
-</>
+                <div className="w-full px-4 pb-4 space-y-2.5">
+                  {others.map((s) => (
+                    <StudentCard key={s.id} student={s} isBatchmate={false} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
