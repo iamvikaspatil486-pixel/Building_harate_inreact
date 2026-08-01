@@ -1,14 +1,22 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, PlusSquare, MessageCircle, Menu, Search, UserCircle, MapPin } from "lucide-react";
-  
+import {
+  Home,
+  PlusSquare,
+  MessageCircle,
+  Menu,
+  FileSearch,
+  UserCircle,
+  MapPin,
+} from "lucide-react";
+
 const tabs = [
- { icon: MapPin,   label: "kuchikus", path: "/kuchikus" },
-  { icon: Home,          label: "Home",  path: "/home"   },
-  { icon: PlusSquare,    label: "Post",  path: "/add-post" },
-     { icon: Search,        label: "Huduki",  path: "/huduku"   },
-  { icon: MessageCircle, label: "Chat",  path: "/chat"   },
- {icon: UserCircle, label:"profile", path: "/profile"},
+  { icon: MapPin, path: "/kuchikus" },
+  { icon: Home, path: "/home" },
+  { icon: PlusSquare, path: "/add-post" },
+  { icon: FileSearch, path: "/huduku" },
+  { icon: MessageCircle, path: "/chat" },
+  { icon: UserCircle, path: "/profile" },
 ];
 
 export default function Navigation() {
@@ -16,7 +24,6 @@ export default function Navigation() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Hide completely on login/root screen
   if (location.pathname === "/" || location.pathname === "/login") return null;
 
   const go = (path) => {
@@ -26,65 +33,69 @@ export default function Navigation() {
 
   return (
     <>
-      {/* Dimmed Backdrop overlay for focus when expanded */}
-      <div 
-        className="fixed inset-0 z-40 transition-opacity duration-300 nav-container-wrapper"
+      <div
+        className="fixed inset-0 z-40 transition-opacity duration-300"
         style={{
-          backgroundColor: "rgba(0, 0, 0, 0.2)",
+          background: expanded ? "rgba(2, 6, 23, 0.45)" : "transparent",
           opacity: expanded ? 1 : 0,
           pointerEvents: expanded ? "auto" : "none",
-          backdropFilter: expanded ? "blur(4px)" : "blur(0px)",
-          WebkitBackdropFilter: expanded ? "blur(4px)" : "blur(0px)",
+          backdropFilter: expanded ? "blur(10px)" : "blur(0px)",
+          WebkitBackdropFilter: expanded ? "blur(10px)" : "blur(0px)",
         }}
         onClick={() => setExpanded(false)}
       />
 
-      {/* Main Container sitting bottom-right */}
-      <div 
-        className="fixed z-50 flex justify-end nav-container-wrapper"
+      <div
+        className="fixed z-50 flex justify-end"
         style={{
           bottom: "24px",
           right: "16px",
-          left: expanded ? "16px" : "auto", 
+          left: expanded ? "16px" : "auto",
           transition: "left 0.4s cubic-bezier(0.25, 1, 0.5, 1)",
         }}
       >
         <div
-          className="flex items-center overflow-hidden"
+          className="overflow-hidden border shadow-2xl"
           style={{
-            background: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 1px 8px rgba(0,0,0,0.06)",
-            border: "1px solid rgba(230, 230, 230, 0.7)",
-            
-            height: "56px",
-            width: expanded ? "100%" : "56px", 
-            borderRadius: expanded ? "24px" : "50%",
-            padding: expanded ? "0 8px" : "0",
-            
-            transition: "width 0.4s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.3s ease, padding 0.4s ease",
+            height: "60px",
+            width: expanded ? "100%" : "60px",
+            borderRadius: expanded ? "28px" : "9999px",
+            padding: expanded ? "0 10px" : "0",
+            background:
+              "linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(59, 130, 246, 0.22), rgba(168, 85, 247, 0.18))",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            borderColor: "rgba(255,255,255,0.12)",
+            boxShadow:
+              "0 10px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)",
+            transition:
+              "width 0.4s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.3s ease, padding 0.4s ease",
           }}
         >
           {expanded ? (
             <div className="flex w-full h-full items-center justify-around animate-fade-in">
-              {tabs.map(({ icon: Icon, label, path }) => {
+              {tabs.map(({ icon: Icon, path }) => {
                 const isActive = location.pathname === path;
                 return (
                   <button
                     key={path}
                     onClick={() => go(path)}
-                    className="flex flex-col items-center justify-center flex-1 h-full gap-0.5 active:scale-90 transition-transform duration-150"
+                    className="flex items-center justify-center flex-1 h-full active:scale-90 transition-transform duration-150"
                   >
-                    <Icon
-                      size={20}
-                      strokeWidth={isActive ? 2.5 : 1.8}
-                      className={isActive ? "text-gray-900" : "text-gray-400"}
-                      fill={isActive && label === "Home" ? "currentColor" : "none"}
-                    />
-                    <span className={`text-[10px] font-bold tracking-wide ${isActive ? "text-gray-900" : "text-gray-400"}`}>
-                      {label}
-                    </span>
+                    <div
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
+                        isActive
+                          ? "bg-white/20 shadow-lg shadow-cyan-500/20"
+                          : "bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      <Icon
+                        size={21}
+                        strokeWidth={isActive ? 2.5 : 1.9}
+                        className={isActive ? "text-white" : "text-white/70"}
+                        fill={isActive ? "currentColor" : "none"}
+                      />
+                    </div>
                   </button>
                 );
               })}
@@ -92,31 +103,29 @@ export default function Navigation() {
           ) : (
             <button
               onClick={() => setExpanded(true)}
-              className="flex items-center justify-center w-full h-full text-gray-700 active:scale-90 transition-transform duration-150"
+              className="flex items-center justify-center w-full h-full text-white active:scale-90 transition-transform duration-150"
               aria-label="Open navigation menu"
             >
               {(() => {
                 const CurrentIcon = tabs.find((t) => t.path === location.pathname)?.icon || Menu;
-                return <CurrentIcon size={22} strokeWidth={2} />;
+                return <CurrentIcon size={22} strokeWidth={2.2} />;
               })()}
             </button>
           )}
         </div>
       </div>
 
-      {/* Global CSS Injector: Forces components to disappear instantly via raw CSS overriding */}
       <style>{`
         .animate-fade-in {
           animation: fadeInEffect 0.25s ease-out forwards;
-          animation-delay: 0.1s;
+          animation-delay: 0.08s;
           opacity: 0;
         }
         @keyframes fadeInEffect {
-          from { opacity: 0; transform: scale(0.96); }
-          to   { opacity: 1; transform: scale(1); }
+          from { opacity: 0; transform: translateY(6px) scale(0.96); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        /* 🚀 THE MAGIC TRICK: If the body has 'comments-open', vaporize the navigation elements completely */
         body.comments-open .nav-container-wrapper {
           display: none !important;
           opacity: 0 !important;
@@ -126,4 +135,3 @@ export default function Navigation() {
     </>
   );
 }
-

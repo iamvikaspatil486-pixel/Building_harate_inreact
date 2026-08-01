@@ -478,9 +478,12 @@ export default function Moments() {
 
         {/* Header */}
         <header className="sticky top-0 z-10 px-4 h-14 flex items-center justify-between bg-slate-950/70 backdrop-blur-xl border-b border-white/5">
-          <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-medium">
-            ← Back
-          </button>
+      <button
+  onClick={() => navigate(-1)}
+  className="w-9 h-9 flex items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 transition active:scale-95"
+>
+  ←
+</button>
           <h1 className="font-black text-sm tracking-wide bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
             college life MOMENTS
           </h1>
