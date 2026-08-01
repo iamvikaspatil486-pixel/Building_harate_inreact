@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, X, Send, Loader2, CheckCircle, BarChart2, Lock } from 'lucide-react';
+import { Plus, X, Send, Loader2, CheckCircle, Lock } from 'lucide-react';
 
 // ── Create Poll Sheet ─────────────────────────────────────────────────────────
 export function CreatePollSheet({ onClose, onCreated, username, batchId }) {
@@ -227,8 +227,6 @@ export function PollBubble({ poll: initialPoll, isMe, username }) {
       {/* Poll header */}
       <div className="px-4 pt-4 pb-2">
         <div className="flex items-center gap-1.5 mb-2">
-          <BarChart2 size={13} className="text-blue-400 flex-shrink-0" />
-          <span className="text-[10px] font-black text-blue-400 uppercase tracking-wider">Poll</span>
           {isEnded && (
             <span className="ml-auto text-[10px] font-bold text-slate-500 flex items-center gap-1">
               <Lock size={10} /> Ended
@@ -236,7 +234,6 @@ export function PollBubble({ poll: initialPoll, isMe, username }) {
           )}
         </div>
         <p className="text-sm font-bold text-slate-100 leading-snug">{poll.question}</p>
-        <p className="text-[10px] text-slate-500 mt-0.5">by @{poll.username}</p>
       </div>
 
       {/* Options */}

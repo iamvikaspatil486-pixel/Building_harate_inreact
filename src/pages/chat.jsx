@@ -431,7 +431,7 @@ const [polls, setPolls] = useState({});  // pollId → poll data
   const fetchMessages = async () => {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id, username, message, edited, reply_to, media_url, voice_url, type, created_at")
+      .select("id, username, message, edited, reply_to, media_url, voice_url, type, created_at, poll_id")
       .eq("batch_id", batchId)
       .order("created_at", { ascending: true })
       .limit(100);
