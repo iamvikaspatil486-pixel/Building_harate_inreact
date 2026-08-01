@@ -1,7 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { Search as SearchIcon, X, Loader2, FileText, Plus, Image as ImageIcon, Upload, FolderOpen, MoreVertical, Trash2, Pencil, Check, Heart } from "lucide-react";
+import {
+  Search as SearchIcon,
+  X,
+  Loader2,
+  FileText,
+  Plus,
+  Image as ImageIcon,
+  Upload,
+  FolderOpen,
+  MoreVertical,
+  Trash2,
+  Pencil,
+  Check,
+  Heart,
+} from "lucide-react";
 
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts)) / 1000);
@@ -25,7 +39,10 @@ function UploadSheet({ onClose, onUploaded }) {
   const handlePick = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    const mapped = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    const mapped = files.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
     setImages((prev) => [...prev, ...mapped]);
     e.target.value = "";
   };
@@ -40,9 +57,18 @@ function UploadSheet({ onClose, onUploaded }) {
   };
 
   const handleUpload = async () => {
-    if (!caption.trim()) { setError("Add a caption — e.g. '2nd year Pathology QP'"); return; }
-    if (images.length === 0) { setError("Add at least one image"); return; }
-    if (!currentUser) { setError("You must be logged in"); return; }
+    if (!caption.trim()) {
+      setError("Add a caption — e.g. '2nd year Pathology QP'");
+      return;
+    }
+    if (images.length === 0) {
+      setError("Add at least one image");
+      return;
+    }
+    if (!currentUser) {
+      setError("You must be logged in");
+      return;
+    }
 
     setUploading(true);
     setError("");
@@ -50,11 +76,13 @@ function UploadSheet({ onClose, onUploaded }) {
     try {
       const { data: resource, error: resErr } = await supabase
         .from("resources")
-        .insert([{
-          caption: caption.trim(),
-          uploaded_by: currentUser.id,
-          college_name: batch?.collegeName || null,
-        }])
+        .insert([
+          {
+            caption: caption.trim(),
+            uploaded_by: currentUser.id,
+            college_name: batch?.collegeName || null,
+          },
+        ])
         .select()
         .single();
 
@@ -63,7 +91,7 @@ function UploadSheet({ onClose, onUploaded }) {
       for (let i = 0; i < images.length; i++) {
         const { file } = images[i];
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `${resource.id}/${Date.now()}_${i}.${ext}`;
+        const path = `\( {resource.id}/ \){Date.now()}_\( {i}. \){ext}`;
 
         const { error: upErr } = await supabase.storage
           .from("resource-images")
@@ -71,19 +99,22 @@ function UploadSheet({ onClose, onUploaded }) {
 
         if (upErr) throw upErr;
 
-        const { data: urlData } = supabase.storage.from("resource-images").getPublicUrl(path);
+        const { data: urlData } = supabase.storage
+          .from("resource-images")
+          .getPublicUrl(path);
 
-        await supabase.from("resource_images").insert([{
-          resource_id: resource.id,
-          image_url: urlData.publicUrl,
-          position: i,
-        }]);
+        await supabase.from("resource_images").insert([
+          {
+            resource_id: resource.id,
+            image_url: urlData.publicUrl,
+            position: i,
+          },
+        ]);
       }
 
       images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       onUploaded();
       onClose();
-
     } catch (err) {
       setError(err.message || "Upload failed. Try again.");
     } finally {
@@ -93,60 +124,70 @@ function UploadSheet({ onClose, onUploaded }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-end"
-      style={{ backdropFilter: "blur(2px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
-        className="w-full bg-white rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto"
-        style={{ maxHeight: "90vh", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+        className="w-full bg-slate-950 border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto"
+        style={{
+          maxHeight: "90vh",
+          animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)",
+        }}
       >
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
+          <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <p className="font-bold text-gray-900 text-sm">Upload Notes / QP</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <p className="font-bold text-white text-sm">Upload Notes / QP</p>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition">
             <X size={20} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl mb-4">
+            <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm p-3 rounded-2xl mb-4">
               {error}
             </div>
           )}
 
           <div className="mb-5">
-            <label className="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
               Caption *
             </label>
             <textarea
               value={caption}
-              onChange={(e) => { setCaption(e.target.value); setError(""); }}
+              onChange={(e) => {
+                setCaption(e.target.value);
+                setError("");
+              }}
               placeholder="e.g. 2nd year Pathology QP — SSIMS, 2nd Internals"
               rows={3}
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors resize-none text-sm leading-relaxed"
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 outline-none focus:border-fuchsia-400/50 transition resize-none text-sm leading-relaxed"
             />
-            <p className="text-[11px] text-gray-400 mt-1.5">
-              💡 Write a clear, searchable caption so others or other college students can find this easily.
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              Write a clear caption so others can find this easily ✨
             </p>
           </div>
 
           <div className="mb-3">
-            <label className="block text-[11px] font-black uppercase tracking-wider text-gray-400 mb-2">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
               Images *
             </label>
 
             <div className="grid grid-cols-3 gap-2">
               {images.map((img, idx) => (
-                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+                <div
+                  key={idx}
+                  className="relative aspect-square rounded-2xl overflow-hidden bg-white/5 border border-white/10"
+                >
                   <img src={img.previewUrl} alt="" className="w-full h-full object-cover" />
                   <button
                     onClick={() => removeImage(idx)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white active:scale-90 transition"
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white active:scale-90 transition"
                   >
                     <X size={13} />
                   </button>
@@ -155,7 +196,7 @@ function UploadSheet({ onClose, onUploaded }) {
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition active:scale-95"
+                className="aspect-square rounded-2xl border border-dashed border-white/20 bg-white/5 flex flex-col items-center justify-center gap-1 text-slate-400 hover:border-cyan-400/50 hover:text-cyan-300 transition active:scale-95"
               >
                 <ImageIcon size={22} />
                 <span className="text-[10px] font-bold">Add</span>
@@ -173,11 +214,14 @@ function UploadSheet({ onClose, onUploaded }) {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-100" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+        <div
+          className="px-4 py-3 border-t border-white/5"
+          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+        >
           <button
             onClick={handleUpload}
             disabled={uploading}
-            className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white font-bold text-sm transition active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {uploading ? (
               <>
@@ -212,23 +256,32 @@ function MyFilesSheet({ onClose, onChanged }) {
   }, []);
 
   useEffect(() => {
-    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpenId(null); };
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpenId(null);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const fetchMyFiles = async () => {
-    if (!currentUser) { setLoading(false); return; }
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data } = await supabase
       .from("resources")
       .select(`id, caption, college_name, created_at, resource_images(id, image_url, position)`)
       .eq("uploaded_by", currentUser.id)
       .order("created_at", { ascending: false });
-    setMyFiles((data || []).map((r) => ({
-      ...r,
-      resource_images: (r.resource_images || []).slice().sort((a, b) => a.position - b.position),
-    })));
+    setMyFiles(
+      (data || []).map((r) => ({
+        ...r,
+        resource_images: (r.resource_images || [])
+          .slice()
+          .sort((a, b) => a.position - b.position),
+      }))
+    );
     setLoading(false);
   };
 
@@ -240,8 +293,13 @@ function MyFilesSheet({ onClose, onChanged }) {
 
   const saveEdit = async () => {
     if (!editCaption.trim()) return;
-    await supabase.from("resources").update({ caption: editCaption.trim() }).eq("id", editingId);
-    setMyFiles((prev) => prev.map((f) => f.id === editingId ? { ...f, caption: editCaption.trim() } : f));
+    await supabase
+      .from("resources")
+      .update({ caption: editCaption.trim() })
+      .eq("id", editingId);
+    setMyFiles((prev) =>
+      prev.map((f) => (f.id === editingId ? { ...f, caption: editCaption.trim() } : f))
+    );
     setEditingId(null);
     onChanged?.();
   };
@@ -250,11 +308,12 @@ function MyFilesSheet({ onClose, onChanged }) {
     setMenuOpenId(null);
     setDeletingId(file.id);
     try {
-      // Delete storage files first
-      const paths = file.resource_images.map((img) => {
-        const idx = img.image_url.indexOf("/resource-images/");
-        return idx >= 0 ? img.image_url.slice(idx + "/resource-images/".length) : null;
-      }).filter(Boolean);
+      const paths = file.resource_images
+        .map((img) => {
+          const idx = img.image_url.indexOf("/resource-images/");
+          return idx >= 0 ? img.image_url.slice(idx + "/resource-images/".length) : null;
+        })
+        .filter(Boolean);
 
       if (paths.length) {
         await supabase.storage.from("resource-images").remove(paths);
@@ -272,21 +331,25 @@ function MyFilesSheet({ onClose, onChanged }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-end"
-      style={{ backdropFilter: "blur(2px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
-        className="w-full bg-white rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto"
-        style={{ maxHeight: "85vh", animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}
+        className="w-full bg-slate-950 border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto"
+        style={{
+          maxHeight: "85vh",
+          animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)",
+        }}
       >
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
+          <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <p className="font-bold text-gray-900 text-sm">My Uploads</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <p className="font-bold text-white text-sm">My Uploads</p>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition">
             <X size={20} />
           </button>
         </div>
@@ -294,27 +357,33 @@ function MyFilesSheet({ onClose, onChanged }) {
         <div className="flex-1 overflow-y-auto px-4 py-3">
           {loading ? (
             <div className="flex justify-center py-12">
-              <Loader2 size={20} className="animate-spin text-gray-300" />
+              <Loader2 size={20} className="animate-spin text-fuchsia-300" />
             </div>
           ) : myFiles.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
-              <FolderOpen size={32} className="text-gray-300" />
-              <p className="text-gray-900 font-semibold text-sm">No uploads yet</p>
-              <p className="text-gray-400 text-xs">Files you upload will show up here</p>
+              <FolderOpen size={32} className="text-slate-600" />
+              <p className="text-white font-semibold text-sm">No uploads yet</p>
+              <p className="text-slate-500 text-xs">Files you upload will show up here</p>
             </div>
           ) : (
             <div className="space-y-3">
               {myFiles.map((file) => (
                 <div
                   key={file.id}
-                  className={`flex gap-3 items-start p-3 rounded-2xl border border-gray-100 transition ${deletingId === file.id ? "opacity-40" : ""}`}
+                  className={`flex gap-3 items-start p-3 rounded-2xl border border-white/10 bg-white/5 transition ${
+                    deletingId === file.id ? "opacity-40" : ""
+                  }`}
                 >
-                  <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
+                  <div className="w-14 h-14 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10">
                     {file.resource_images[0] ? (
-                      <img src={file.resource_images[0].image_url} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={file.resource_images[0].image_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <FileText size={18} className="text-gray-300" />
+                        <FileText size={18} className="text-slate-600" />
                       </div>
                     )}
                   </div>
@@ -327,44 +396,56 @@ function MyFilesSheet({ onClose, onChanged }) {
                           value={editCaption}
                           onChange={(e) => setEditCaption(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && saveEdit()}
-                          className="flex-1 min-w-0 bg-gray-50 border border-blue-300 rounded-lg px-2 py-1.5 text-sm text-gray-900 outline-none"
+                          className="flex-1 min-w-0 bg-white/5 border border-cyan-400/40 rounded-lg px-2 py-1.5 text-sm text-white outline-none"
                         />
-                        <button onClick={saveEdit} className="text-emerald-500 active:scale-90 transition flex-shrink-0">
+                        <button
+                          onClick={saveEdit}
+                          className="text-emerald-400 active:scale-90 transition flex-shrink-0"
+                        >
                           <Check size={16} />
                         </button>
-                        <button onClick={() => setEditingId(null)} className="text-gray-400 active:scale-90 transition flex-shrink-0">
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="text-slate-400 active:scale-90 transition flex-shrink-0"
+                        >
                           <X size={16} />
                         </button>
                       </div>
                     ) : (
-                      <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">
+                      <p className="text-sm font-semibold text-white leading-snug line-clamp-2">
                         {file.caption}
                       </p>
                     )}
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      {file.resource_images.length} image{file.resource_images.length !== 1 ? "s" : ""} · {timeAgo(file.created_at)}
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {file.resource_images.length} image
+                      {file.resource_images.length !== 1 ? "s" : ""} · {timeAgo(file.created_at)}
                     </p>
                   </div>
 
                   {editingId !== file.id && (
                     <div className="relative flex-shrink-0">
                       <button
-                        onClick={() => setMenuOpenId(menuOpenId === file.id ? null : file.id)}
-                        className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition"
+                        onClick={() =>
+                          setMenuOpenId(menuOpenId === file.id ? null : file.id)
+                        }
+                        className="text-slate-400 hover:text-white p-1.5 rounded-full hover:bg-white/5 transition"
                       >
                         <MoreVertical size={16} />
                       </button>
                       {menuOpenId === file.id && (
-                        <div ref={menuRef} className="absolute right-0 top-9 z-20 bg-white shadow-xl rounded-xl border border-gray-100 py-1 w-36">
+                        <div
+                          ref={menuRef}
+                          className="absolute right-0 top-9 z-20 bg-slate-900 shadow-xl rounded-xl border border-white/10 py-1 w-36"
+                        >
                           <button
                             onClick={() => startEdit(file)}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-200 hover:bg-white/5 transition"
                           >
-                            <Pencil size={13} className="text-blue-500" /> Edit caption
+                            <Pencil size={13} className="text-cyan-300" /> Edit caption
                           </button>
                           <button
                             onClick={() => handleDelete(file)}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10 transition"
                           >
                             <Trash2 size={13} /> Delete
                           </button>
@@ -384,7 +465,7 @@ function MyFilesSheet({ onClose, onChanged }) {
   );
 }
 
-// ─── Huduku (combined search + upload) ────────────────────────────────────────
+// ─── Huduku ───────────────────────────────────────────────────────────────────
 export default function Huduku() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -464,11 +545,14 @@ export default function Huduku() {
     const updateList = (list) =>
       list.map((r) =>
         r.id === resource.id
-          ? { ...r, liked_by_me: !isLiked, likes_count: r.likes_count + (isLiked ? -1 : 1) }
+          ? {
+              ...r,
+              liked_by_me: !isLiked,
+              likes_count: r.likes_count + (isLiked ? -1 : 1),
+            }
           : r
       );
 
-    // Optimistic UI update
     setRecent((prev) => updateList(prev));
     setResults((prev) => updateList(prev));
 
@@ -495,7 +579,6 @@ export default function Huduku() {
           .eq("id", resource.id);
       }
     } catch (err) {
-      // Revert on failure
       console.error("Like toggle failed:", err);
       setRecent((prev) => updateList(prev));
       setResults((prev) => updateList(prev));
@@ -527,48 +610,53 @@ export default function Huduku() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-white flex flex-col pb-20">
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white flex flex-col pb-24 relative overflow-hidden">
+        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-500/20 blur-[110px] rounded-full" />
+        <div className="pointer-events-none absolute bottom-28 right-0 w-56 h-56 bg-cyan-500/15 blur-[90px] rounded-full" />
 
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
-          <p className="font-bold text-gray-900 text-base mb-2">🔍 Huduku</p>
+        <header className="sticky top-0 z-10 px-4 py-3 bg-slate-950/70 backdrop-blur-xl border-b border-white/5 relative">
+          <p className="font-black text-sm tracking-[0.18em] uppercase mb-3 bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
+            HUDUKI
+          </p>
 
-   {/* Search bar */}
-          <div className="flex items-center bg-gray-100 rounded-full px-4 py-2.5 gap-2">
-            <SearchIcon size={16} className="text-gray-400 flex-shrink-0" />
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-4 py-2.5 gap-2">
+            <SearchIcon size={16} className="text-slate-400 flex-shrink-0" />
             <input
               value={query}
               onChange={handleChange}
-              placeholder="Search e.g. 'pathology 2nd internals'"
-              className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
+              placeholder="Search e.g. pathology 2nd internals"
+              className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none"
             />
             {query && (
-              <button onClick={clearSearch} className="text-gray-400 hover:text-gray-600 transition flex-shrink-0">
+              <button
+                onClick={clearSearch}
+                className="text-slate-400 hover:text-white transition flex-shrink-0"
+              >
                 <X size={15} />
               </button>
             )}
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full">
-
+        <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full relative z-10">
           {!searched && (
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.16em] mb-3">
               Recent uploads
             </p>
           )}
 
           {loading ? (
             <div className="flex justify-center py-12">
-              <Loader2 size={22} className="animate-spin text-gray-300" />
+              <Loader2 size={22} className="animate-spin text-fuchsia-300" />
             </div>
           ) : list.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-20 text-center">
-              <FileText size={36} className="text-gray-300" />
-              <p className="text-gray-900 font-bold text-sm">
+              <FileText size={36} className="text-slate-600" />
+              <p className="text-white font-bold text-sm">
                 {searched ? "No results found" : "No uploads yet"}
               </p>
-              <p className="text-gray-400 text-xs">
+              <p className="text-slate-500 text-xs">
                 {searched ? "Try different keywords" : "Be the first to share notes or QPs"}
               </p>
             </div>
@@ -580,45 +668,59 @@ export default function Huduku() {
                   <div
                     key={r.id}
                     onClick={() => navigate(`/resource/${r.id}`)}
-                    className="w-full flex gap-3 items-start p-3 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition text-left active:scale-[0.99] cursor-pointer"
+                    className="w-full flex gap-3 items-start p-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/[0.07] transition text-left active:scale-[0.99] cursor-pointer"
                   >
-                    <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0">
+                    <div className="w-16 h-16 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10">
                       {imgs[0] ? (
-                        <img src={imgs[0].image_url} alt="" className="w-full h-full object-cover" />
+                        <img
+                          src={imgs[0].image_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <FileText size={20} className="text-gray-300" />
+                          <FileText size={20} className="text-slate-600" />
                         </div>
                       )}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">
+                      <p className="text-sm font-semibold text-white leading-snug line-clamp-2">
                         {r.caption}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         {r.college_name && (
-                          <span className="text-[11px] text-blue-500 font-medium bg-blue-50 px-2 py-0.5 rounded-full">
+                          <span className="text-[11px] text-cyan-300 font-medium bg-cyan-500/10 border border-cyan-400/20 px-2 py-0.5 rounded-full">
                             {r.college_name}
                           </span>
                         )}
-                        <span className="text-[11px] text-gray-400">{timeAgo(r.created_at)}</span>
+                        <span className="text-[11px] text-slate-500">
+                          {timeAgo(r.created_at)}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-gray-400 mt-1">
-                        {imgs.length} image{imgs.length !== 1 ? "s" : ""} · by {r.students?.full_name?.split(" ")[0] || "Unknown"}
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        {imgs.length} image{imgs.length !== 1 ? "s" : ""} · by{" "}
+                        {r.students?.full_name?.split(" ")[0] || "Unknown"}
                       </p>
                     </div>
 
-                    {/* Like button */}
                     <button
                       onClick={(e) => toggleLike(r, e)}
                       className="flex flex-col items-center gap-0.5 flex-shrink-0 self-center px-1 active:scale-90 transition"
                     >
                       <Heart
                         size={20}
-                        className={r.liked_by_me ? "fill-rose-500 text-rose-500" : "text-gray-300"}
+                        className={
+                          r.liked_by_me
+                            ? "fill-rose-400 text-rose-400"
+                            : "text-slate-500"
+                        }
                       />
-                      <span className={`text-[10px] font-bold ${r.liked_by_me ? "text-rose-500" : "text-gray-400"}`}>
+                      <span
+                        className={`text-[10px] font-bold ${
+                          r.liked_by_me ? "text-rose-300" : "text-slate-500"
+                        }`}
+                      >
                         {r.likes_count || 0}
                       </span>
                     </button>
@@ -629,37 +731,31 @@ export default function Huduku() {
           )}
         </main>
 
-        {/* My Files button — smaller, above the upload FAB */}
+        {/* My Files */}
         <button
           onClick={() => setShowMyFiles(true)}
-          className="fixed bottom-[152px] right-4 z-30 w-11 h-11 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 shadow-md active:scale-90 transition"
+          className="fixed bottom-[152px] right-4 z-30 w-11 h-11 rounded-full bg-white/10 border border-white/15 backdrop-blur flex items-center justify-center text-slate-200 shadow-md active:scale-90 transition"
         >
           <FolderOpen size={18} />
         </button>
 
-        {/* FAB to open upload sheet */}
+        {/* FAB */}
         <button
           onClick={() => setShowUpload(true)}
-          className="fixed bottom-24 right-4 z-30 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center text-white shadow-lg active:scale-90 transition"
+          className="fixed bottom-24 right-4 z-30 w-14 h-14 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 flex items-center justify-center text-white shadow-lg shadow-fuchsia-500/20 active:scale-90 transition"
         >
           <Plus size={24} />
         </button>
-
       </div>
 
       {showUpload && (
-        <UploadSheet
-          onClose={() => setShowUpload(false)}
-          onUploaded={fetchRecent}
-        />
+        <UploadSheet onClose={() => setShowUpload(false)} onUploaded={fetchRecent} />
       )}
 
       {showMyFiles && (
-        <MyFilesSheet
-          onClose={() => setShowMyFiles(false)}
-          onChanged={fetchRecent}
-        />
+        <MyFilesSheet onClose={() => setShowMyFiles(false)} onChanged={fetchRecent} />
       )}
     </>
   );
 }
+       
