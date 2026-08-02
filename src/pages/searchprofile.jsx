@@ -111,13 +111,13 @@ export default function SearchProfile() {
   const totalResults = batchmates.length + others.length;
 
   return (
-    <div className="min-h-screen w-full max-w-none bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen w-full max-w-[100%] bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white flex flex-col relative overflow-x-hidden box-border">
       {/* glow */}
       <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-500/20 blur-[110px] rounded-full" />
       <div className="pointer-events-none absolute bottom-24 right-0 w-56 h-56 bg-cyan-500/15 blur-[90px] rounded-full" />
 
       {/* Header */}
-      <header className="sticky top-0 z-10 w-full px-4 py-3 bg-slate-950/70 backdrop-blur-xl border-b border-white/5 relative">
+       <header className="sticky top-0 z-10 w-full max-w-[100%] px-4 py-3 bg-slate-950/70 backdrop-blur-xl border-b border-white/5 relative box-border">
         <div className="flex items-center gap-3 mb-3">
           <button
             onClick={() => navigate(-1)}
@@ -154,7 +154,7 @@ export default function SearchProfile() {
       </header>
 
       {/* Results */}
-      <main className="flex-1 w-full pb-24 relative z-10">
+      <main className="flex-1 w-full max-w-[100%] pb-24 relative z-10 box-border">
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 size={22} className="animate-spin text-fuchsia-300" />
