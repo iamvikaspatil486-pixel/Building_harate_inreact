@@ -20,29 +20,41 @@ export default function ViewProfile() {
   const [loading, setLoading] = useState(true);
   const [showFullAvatar, setShowFullAvatar] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
     const fetch = async () => {
-      const { data } = await supabase
+      // 1. Fetch student with all needed fields
+      const { data, error } = await supabase
         .from('students')
-        .select('full_name, bio, batch_id')
+        .select('full_name, bio, batch_id, nickname, roll_no')
         .eq('id', id)
         .single();
 
-      if (data?.batch_id) {
+      if (error || !data) {
+        setStudent(null);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Fetch batch details if exists
+      let batchData = null;
+      if (data.batch_id) {
         const { data: batch } = await supabase
           .from('batches')
-          .select('batch_name')
+          .select('batch_name, college_name')
           .eq('id', data.batch_id)
           .single();
-        setStudent({ ...data, batch_name: batch?.batch_name });
-      } else {
-        setStudent(data);
+        batchData = batch;
       }
+
+      setStudent({
+        ...data,
+        batches: batchData, // nested object so JSX works
+      });
       setLoading(false);
     };
+
     fetch();
   }, [id]);
-
 
   if (loading) {
     return (
@@ -130,11 +142,15 @@ useEffect(() => {
             <h1 className="text-2xl font-black tracking-tight text-white">
               {student.full_name}
             </h1>
+
+            {/* Nickname */}
             {student.nickname && (
               <p className="text-sm text-fuchsia-300 font-semibold mt-1">
                 @{student.nickname}
               </p>
             )}
+
+            {/* Roll number */}
             {student.roll_no && (
               <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold tracking-wide bg-white/5 border border-white/10 text-cyan-200">
                 Roll {student.roll_no}
@@ -146,9 +162,6 @@ useEffect(() => {
           {student.batches && (
             <div className="mb-4 rounded-3xl p-[1px] bg-gradient-to-r from-cyan-400/40 via-fuchsia-500/40 to-pink-500/40">
               <div className="rounded-3xl bg-slate-950/80 backdrop-blur-xl px-4 py-4 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 mb-1">
-                  Batch
-                </p>
                 <p className="text-sm font-bold text-white">
                   {student.batches.batch_name}
                 </p>
@@ -173,7 +186,7 @@ useEffect(() => {
                 </p>
               ) : (
                 <p className="text-sm text-slate-500 text-center py-2">
-                  No bio yet 
+                  No bio yet
                 </p>
               )}
             </div>
@@ -186,7 +199,7 @@ useEffect(() => {
             </div>
             <p className="text-sm font-bold text-white">More energy loading...</p>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed px-2">
-               DMs and other features are on the way. Stay in the loop.
+              DMs and other features are on the way. Stay in the loop.
             </p>
           </div>
         </main>
