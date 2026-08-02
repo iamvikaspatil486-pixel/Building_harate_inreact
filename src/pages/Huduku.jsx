@@ -26,10 +26,11 @@ const timeAgo = (ts) => {
 };
 
 // ─── Upload Sheet ─────────────────────────────────────────────────────────────
+// ─── Upload Sheet ─────────────────────────────────────────────────────────────
 function UploadSheet({ onClose, onUploaded }) {
   const fileInputRef = useRef();
   const [caption, setCaption] = useState("");
-  const [images, setImages] = useState([]);
+  const [files, setFiles] = useState([]); // renamed from images → files
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,20 +38,27 @@ function UploadSheet({ onClose, onUploaded }) {
   const batch = JSON.parse(localStorage.getItem("selectedBatch") || "null");
 
   const handlePick = (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    const mapped = files.map((file) => ({
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-    setImages((prev) => [...prev, ...mapped]);
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
+
+    const mapped = selected.map((file) => {
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      return {
+        file,
+        previewUrl: isPdf ? null : URL.createObjectURL(file),
+        isPdf,
+        name: file.name,
+      };
+    });
+
+    setFiles((prev) => [...prev, ...mapped]);
     e.target.value = "";
   };
 
-  const removeImage = (idx) => {
-    setImages((prev) => {
+  const removeFile = (idx) => {
+    setFiles((prev) => {
       const copy = [...prev];
-      URL.revokeObjectURL(copy[idx].previewUrl);
+      if (copy[idx].previewUrl) URL.revokeObjectURL(copy[idx].previewUrl);
       copy.splice(idx, 1);
       return copy;
     });
@@ -61,8 +69,8 @@ function UploadSheet({ onClose, onUploaded }) {
       setError("Add a caption — e.g. '2nd year Pathology QP'");
       return;
     }
-    if (images.length === 0) {
-      setError("Add at least one image");
+    if (files.length === 0) {
+      setError("Add at least one file (image or PDF)");
       return;
     }
     if (!currentUser) {
@@ -88,13 +96,13 @@ function UploadSheet({ onClose, onUploaded }) {
 
       if (resErr) throw resErr;
 
-      for (let i = 0; i < images.length; i++) {
-        const { file } = images[i];
-        const ext = file.name.split(".").pop() || "jpg";
+      for (let i = 0; i < files.length; i++) {
+        const { file, isPdf } = files[i];
+        const ext = file.name.split(".").pop() || (isPdf ? "pdf" : "jpg");
         const path = `\( {resource.id}/ \){Date.now()}_\( {i}. \){ext}`;
 
         const { error: upErr } = await supabase.storage
-          .from("resource-images")
+          .from("resource-images") // you can keep the same bucket
           .upload(path, file, { contentType: file.type });
 
         if (upErr) throw upErr;
@@ -112,7 +120,10 @@ function UploadSheet({ onClose, onUploaded }) {
         ]);
       }
 
-      images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      files.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
+
       onUploaded();
       onClose();
     } catch (err) {
@@ -141,7 +152,7 @@ function UploadSheet({ onClose, onUploaded }) {
         </div>
 
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-          <p className="font-bold text-white text-sm">Upload Notes / QP</p>
+          <p className="font-bold text-white text-sm">Upload Notes / QP / PDF</p>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition">
             <X size={20} />
           </button>
@@ -175,18 +186,28 @@ function UploadSheet({ onClose, onUploaded }) {
 
           <div className="mb-3">
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Images *
+              Files (Images or PDFs) *
             </label>
 
             <div className="grid grid-cols-3 gap-2">
-              {images.map((img, idx) => (
+              {files.map((f, idx) => (
                 <div
                   key={idx}
-                  className="relative aspect-square rounded-2xl overflow-hidden bg-white/5 border border-white/10"
+                  className="relative aspect-square rounded-2xl overflow-hidden bg-white/5 border border-white/10 flex flex-col items-center justify-center"
                 >
-                  <img src={img.previewUrl} alt="" className="w-full h-full object-cover" />
+                  {f.isPdf ? (
+                    <>
+                      <FileText size={28} className="text-rose-400 mb-1" />
+                      <p className="text-[10px] text-slate-400 px-1 text-center line-clamp-2">
+                        {f.name}
+                      </p>
+                    </>
+                  ) : (
+                    <img src={f.previewUrl} alt="" className="w-full h-full object-cover" />
+                  )}
+
                   <button
-                    onClick={() => removeImage(idx)}
+                    onClick={() => removeFile(idx)}
                     className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center text-white active:scale-90 transition"
                   >
                     <X size={13} />
@@ -198,7 +219,7 @@ function UploadSheet({ onClose, onUploaded }) {
                 onClick={() => fileInputRef.current?.click()}
                 className="aspect-square rounded-2xl border border-dashed border-white/20 bg-white/5 flex flex-col items-center justify-center gap-1 text-slate-400 hover:border-cyan-400/50 hover:text-cyan-300 transition active:scale-95"
               >
-                <ImageIcon size={22} />
+                <Plus size={22} />
                 <span className="text-[10px] font-bold">Add</span>
               </button>
             </div>
@@ -206,7 +227,7 @@ function UploadSheet({ onClose, onUploaded }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf,application/pdf"
               multiple
               onChange={handlePick}
               className="hidden"
@@ -328,141 +349,147 @@ function MyFilesSheet({ onClose, onChanged }) {
       setDeletingId(null);
     }
   };
-
-  return (
+return (
+  <div
+    className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
+    onClick={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}
+  >
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      className="w-full bg-slate-950 border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto"
+      style={{
+        maxHeight: "85vh",
+        animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)",
       }}
     >
-      <div
-        className="w-full bg-slate-950 border-t border-white/10 rounded-t-3xl flex flex-col shadow-2xl max-w-lg mx-auto"
-        style={{
-          maxHeight: "85vh",
-          animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)",
-        }}
-      >
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-white/20" />
-        </div>
+      <div className="flex justify-center pt-3 pb-1">
+        <div className="w-10 h-1 rounded-full bg-white/20" />
+      </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-          <p className="font-bold text-white text-sm">My Uploads</p>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition">
-            <X size={20} />
-          </button>
-        </div>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+        <p className="font-bold text-white text-sm">My Uploads</p>
+        <button onClick={onClose} className="text-slate-400 hover:text-white transition">
+          <X size={20} />
+        </button>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 size={20} className="animate-spin text-fuchsia-300" />
-            </div>
-          ) : myFiles.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16 text-center">
-              <FolderOpen size={32} className="text-slate-600" />
-              <p className="text-white font-semibold text-sm">No uploads yet</p>
-              <p className="text-slate-500 text-xs">Files you upload will show up here</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {myFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className={`flex gap-3 items-start p-3 rounded-2xl border border-white/10 bg-white/5 transition ${
-                    deletingId === file.id ? "opacity-40" : ""
-                  }`}
-                >
-                  <div className="w-14 h-14 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10">
-                    {file.resource_images[0] ? (
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 size={20} className="animate-spin text-fuchsia-300" />
+          </div>
+        ) : myFiles.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <FolderOpen size={32} className="text-slate-600" />
+            <p className="text-white font-semibold text-sm">No uploads yet</p>
+            <p className="text-slate-500 text-xs">Files you upload will show up here</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {myFiles.map((file) => (
+              <div
+                key={file.id}
+                className={`flex gap-3 items-start p-3 rounded-2xl border border-white/10 bg-white/5 transition ${
+                  deletingId === file.id ? "opacity-40" : ""
+                }`}
+              >
+                {/* Thumbnail - now supports PDF */}
+                <div className="w-14 h-14 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
+                  {file.resource_images[0] ? (
+                    file.resource_images[0].image_url.toLowerCase().endsWith(".pdf") ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <FileText size={20} className="text-rose-400" />
+                        <span className="text-[9px] text-slate-400 font-bold">PDF</span>
+                      </div>
+                    ) : (
                       <img
                         src={file.resource_images[0].image_url}
                         alt=""
                         className="w-full h-full object-cover"
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <FileText size={18} className="text-slate-600" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    {editingId === file.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          autoFocus
-                          value={editCaption}
-                          onChange={(e) => setEditCaption(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && saveEdit()}
-                          className="flex-1 min-w-0 bg-white/5 border border-cyan-400/40 rounded-lg px-2 py-1.5 text-sm text-white outline-none"
-                        />
-                        <button
-                          onClick={saveEdit}
-                          className="text-emerald-400 active:scale-90 transition flex-shrink-0"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="text-slate-400 active:scale-90 transition flex-shrink-0"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-sm font-semibold text-white leading-snug line-clamp-2">
-                        {file.caption}
-                      </p>
-                    )}
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      {file.resource_images.length} image
-                      {file.resource_images.length !== 1 ? "s" : ""} · {timeAgo(file.created_at)}
-                    </p>
-                  </div>
-
-                  {editingId !== file.id && (
-                    <div className="relative flex-shrink-0">
-                      <button
-                        onClick={() =>
-                          setMenuOpenId(menuOpenId === file.id ? null : file.id)
-                        }
-                        className="text-slate-400 hover:text-white p-1.5 rounded-full hover:bg-white/5 transition"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-                      {menuOpenId === file.id && (
-                        <div
-                          ref={menuRef}
-                          className="absolute right-0 top-9 z-20 bg-slate-900 shadow-xl rounded-xl border border-white/10 py-1 w-36"
-                        >
-                          <button
-                            onClick={() => startEdit(file)}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-200 hover:bg-white/5 transition"
-                          >
-                            <Pencil size={13} className="text-cyan-300" /> Edit caption
-                          </button>
-                          <button
-                            onClick={() => handleDelete(file)}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10 transition"
-                          >
-                            <Trash2 size={13} /> Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    )
+                  ) : (
+                    <FileText size={18} className="text-slate-600" />
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        <div style={{ paddingBottom: "env(safe-area-inset-bottom, 12px)" }} />
+                <div className="flex-1 min-w-0">
+                  {editingId === file.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        value={editCaption}
+                        onChange={(e) => setEditCaption(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveEdit()}
+                        className="flex-1 min-w-0 bg-white/5 border border-cyan-400/40 rounded-lg px-2 py-1.5 text-sm text-white outline-none"
+                      />
+                      <button
+                        onClick={saveEdit}
+                        className="text-emerald-400 active:scale-90 transition flex-shrink-0"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-slate-400 active:scale-90 transition flex-shrink-0"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-semibold text-white leading-snug line-clamp-2">
+                      {file.caption}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {file.resource_images.length} file
+                    {file.resource_images.length !== 1 ? "s" : ""} · {timeAgo(file.created_at)}
+                  </p>
+                </div>
+
+                {editingId !== file.id && (
+                  <div className="relative flex-shrink-0">
+                    <button
+                      onClick={() =>
+                        setMenuOpenId(menuOpenId === file.id ? null : file.id)
+                      }
+                      className="text-slate-400 hover:text-white p-1.5 rounded-full hover:bg-white/5 transition"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                    {menuOpenId === file.id && (
+                      <div
+                        ref={menuRef}
+                        className="absolute right-0 top-9 z-20 bg-slate-900 shadow-xl rounded-xl border border-white/10 py-1 w-36"
+                      >
+                        <button
+                          onClick={() => startEdit(file)}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-200 hover:bg-white/5 transition"
+                        >
+                          <Pencil size={13} className="text-cyan-300" /> Edit caption
+                        </button>
+                        <button
+                          onClick={() => handleDelete(file)}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10 transition"
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      <div style={{ paddingBottom: "env(safe-area-inset-bottom, 12px)" }} />
     </div>
-  );
+  </div>
+);
+
 }
 
 // ─── Huduku ───────────────────────────────────────────────────────────────────
@@ -670,19 +697,24 @@ export default function Huduku() {
                     onClick={() => navigate(`/resource/${r.id}`)}
                     className="w-full flex gap-3 items-start p-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/[0.07] transition text-left active:scale-[0.99] cursor-pointer"
                   >
-                    <div className="w-16 h-16 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10">
-                      {imgs[0] ? (
-                        <img
-                          src={imgs[0].image_url}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <FileText size={20} className="text-slate-600" />
-                        </div>
-                      )}
-                    </div>
+                 <div className="w-16 h-16 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
+  {imgs[0] ? (
+    imgs[0].image_url.toLowerCase().endsWith(".pdf") ? (
+      <div className="flex flex-col items-center justify-center gap-1">
+        <FileText size={22} className="text-rose-400" />
+        <span className="text-[9px] text-slate-400 font-bold">PDF</span>
+      </div>
+    ) : (
+      <img
+        src={imgs[0].image_url}
+        alt=""
+        className="w-full h-full object-cover"
+      />
+    )
+  ) : (
+    <FileText size={20} className="text-slate-600" />
+  )}
+</div>
 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white leading-snug line-clamp-2">
