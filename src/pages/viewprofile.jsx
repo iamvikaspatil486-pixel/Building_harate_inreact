@@ -158,21 +158,21 @@ export default function ViewProfile() {
             )}
           </div>
 
-          {/* Batch card */}
-          {student.batches && (
-            <div className="mb-4 rounded-3xl p-[1px] bg-gradient-to-r from-cyan-400/40 via-fuchsia-500/40 to-pink-500/40">
-              <div className="rounded-3xl bg-slate-950/80 backdrop-blur-xl px-4 py-4 text-center">
-                <p className="text-sm font-bold text-white">
-                  {student.batches.batch_name}
-                </p>
-                {student.batches.college_name && (
-                  <p className="text-xs text-slate-400 mt-1">
-                    {student.batches.college_name}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+     {/* Batch card */}
+{student.batches && (
+  <div className="mb-4 rounded-3xl p-[1px] bg-gradient-to-r from-cyan-400/40 via-fuchsia-500/40 to-pink-500/40">
+    <div className="rounded-3xl bg-slate-950/80 backdrop-blur-xl px-4 py-4 text-left">
+      <p className="text-sm font-bold text-white">
+        {student.batches.batch_name}
+      </p>
+      {student.batches.college_name && (
+        <p className="text-xs text-slate-400 mt-1">
+          {student.batches.college_name}
+        </p>
+      )}
+    </div>
+  </div>
+)}
 
           {/* About / Bio */}
           <div className="mb-6">
