@@ -13,6 +13,7 @@ import AddPost from './pages/add-post';
 import Chat from './pages/chat';
 import Profile from './pages/profile';
 import SearchProfile from './pages/searchprofile';
+import ViewProfile from './pages/viewprofile';
 import Navigation from './components/navigation';
 import Huduku from './pages/Huduku'
 import ResourceDetail from './pages/ResourceDetail'
@@ -127,6 +128,7 @@ function AppLayout({ session, setSession }) {
      <Route path="/viewmoments" element={session ? <ViewMoments/> : <Navigate to="/login" replace />} />
    <Route path="/aDmiiN" element={session ? <AdminVik/> : <Navigate to="/login" replace />} />
     <Route path="/searchprofile" element={session ? <SearchProfile/> : <Navigate to="/login" replace />} />	
+     <Route path="/viewprofile/:id" element={session ? <ViewProfile/> : <Navigate to="/login" replace />} />
 
         
         {/* Catch-all global fallback */}
