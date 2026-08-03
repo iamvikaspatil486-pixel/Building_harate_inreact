@@ -174,8 +174,9 @@ function UploadSheet({ onClose, onUploaded }) {
     setUploading(true);
     setError('');
     try {
-      const ext = image.file.name.split('.').pop() || 'jpg';
-      const path = `\( {currentUser.id}/ \){Date.now()}.${ext}`;
+     const rawExt = image.file.name.split('.').pop()?.toLowerCase();
+const ext = rawExt || 'jpg';
+const path = `${currentUser.id}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from('moments')
         .upload(path, image.file, { contentType: image.file.type });
@@ -402,12 +403,16 @@ function MomentViewer({ moments, startIndex, onClose, onViewed }) {
         <button onClick={prev} className="absolute left-0 top-0 h-full w-1/3" />
         <button onClick={next} className="absolute right-0 top-0 h-full w-1/3" />
       </div>
+       {moment.caption && (
+  <div className="px-4 pb-4">
+    <div className="bg-black/40 backdrop-blur-md border border-fuchsia-500/30 rounded-2xl px-4 py-3 shadow-[0_0_20px_rgba(217,70,239,0.15)]">
+      <p className="text-white text-sm leading-relaxed">
+        {moment.caption}
+      </p>
+    </div>
+  </div>
+)}
 
-      {moment.caption && (
-        <div className="px-4 py-3 bg-gradient-to-t from-black/80 to-transparent">
-          <p className="text-white text-sm leading-relaxed">{moment.caption}</p>
-        </div>
-      )}
       <div style={{ paddingBottom: 'env(safe-area-inset-bottom, 16px)' }} />
     </div>
   );
