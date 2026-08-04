@@ -21,6 +21,23 @@ export default function Profile() {
   const [notifPermission, setNotifPermission] = useState('default');
   const [notifLoading, setNotifLoading] = useState(false);
   const [hasFcmToken, setHasFcmToken] = useState(false);
+ const [unreadCount, setUnreadCount] = useState(0);
+
+// With:
+const [currentUser] = useState(() => JSON.parse(localStorage.getItem('anon_user') || 'null'));
+
+useEffect(() => {
+  const fetchUnread = async () => {
+    if (!ocurrentUser?.id) return;
+    const { count } = await supabase
+      .from('confessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('to_student_id', currentUser.id)
+      .eq('is_read', false);
+    setUnreadCount(count || 0);
+  };
+  fetchUnread();
+}, []);
 
   useEffect(() => {
     fetchProfileData();
@@ -161,12 +178,19 @@ export default function Profile() {
     </button>
 
   
-   <button
-    onClick={() => navigate('/SearchConfession')}
-    className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
-  >
-    <Heart size={18} className="text-pink-300" />
-  </button>
+  <button
+  onClick={() => navigate('/SearchConfession')}
+  className="relative w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
+>
+  <Heart size={18} className="text-pink-300" />
+  {unreadCount > 0 && (
+    <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-pink-500 rounded-full flex items-center justify-center px-1">
+      <span className="text-[10px] font-black text-white">
+        {unreadCount > 99 ? '99+' : unreadCount}
+      </span>
+    </div>
+  )}
+</button>
 
     {/* Menu */}
     <button

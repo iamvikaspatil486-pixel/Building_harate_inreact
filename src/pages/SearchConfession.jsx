@@ -38,7 +38,16 @@ export default function SearchConfession() {
 
   useEffect(() => {
     fetchAll();
-  }, []);
+  }, []); 
+ // Mark all received confessions as read when page opens
+useEffect(() => {
+  if (!currentUser?.id) return;
+  supabase
+    .from('confessions')
+    .update({ is_read: true })
+    .eq('to_student_id', currentUser.id)
+    .eq('is_read', false);
+}, [currentUser?.id]);
 
   const fetchAll = async () => {
     setLoading(true);
