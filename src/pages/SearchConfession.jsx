@@ -4,12 +4,24 @@ import { supabase } from '../lib/supabase';
 import { ArrowLeft, Loader2, MessageCircleHeart, Inbox, Send } from 'lucide-react';
 
 const timeAgo = (ts) => {
-  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (!ts) return 'just now';
+
+  // Convert UTC to local Indian time properly
+  const utcDate = new Date(ts);
+  const localDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000)); // Add IST offset
+
+  const now = new Date();
+  const diffMs = now - localDate;
+  const diffSeconds = Math.floor(diffMs / 1000);
+
+  if (diffSeconds < 0) return 'just now';           // Safety for small differences
+  if (diffSeconds < 60) return 'just now';
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`;
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`;
+  
+  return `${Math.floor(diffSeconds / 86400)}d ago`;
 };
+
 
 export default function SearchConfession() {
   const navigate = useNavigate();
