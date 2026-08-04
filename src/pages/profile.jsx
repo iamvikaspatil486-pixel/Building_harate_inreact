@@ -26,9 +26,9 @@ export default function Profile() {
 // With:
 const [currentUser] = useState(() => JSON.parse(localStorage.getItem('anon_user') || 'null'));
 
-useEffect(() => {
+ useEffect(() => {
   const fetchUnread = async () => {
-    if (!ocurrentUser?.id) return;
+    if (!currentUser?.id) return;
     const { count } = await supabase
       .from('confessions')
       .select('*', { count: 'exact', head: true })
@@ -37,7 +37,7 @@ useEffect(() => {
     setUnreadCount(count || 0);
   };
   fetchUnread();
-}, []);
+}, []); // ← just empty array
 
   useEffect(() => {
     fetchProfileData();
