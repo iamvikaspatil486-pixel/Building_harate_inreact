@@ -137,6 +137,8 @@ const path = `${resource.id}/${Date.now()}_${i}.${ext}`;
             resource_id: resource.id,
             image_url: urlData.publicUrl,
             position: i,
+            file_type: file.type.startsWith("image/") ? "image" : "pdf",
+  file_name: file.name,
           },
         ]);
 

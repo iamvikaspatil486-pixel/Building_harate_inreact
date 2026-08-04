@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Menu, X, Send, Check, LogOut, Search, MessageSquare, AlertTriangle, Bell, BellOff } from 'lucide-react';
+import { Menu, Heart,  X, Send, Check, LogOut, Search, MessageSquare, AlertTriangle, Bell, BellOff } from 'lucide-react';
 import { setupNotifications } from "../lib/notifications";
 
 export default function Profile() {
@@ -159,6 +159,14 @@ export default function Profile() {
     >
       <Search size={18} />
     </button>
+
+  
+   <button
+    onClick={() => navigate('/SearchConfession')}
+    className="w-10 h-10 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md flex items-center justify-center active:scale-90 transition"
+  >
+    <Heart size={18} className="text-pink-300" />
+  </button>
 
     {/* Menu */}
     <button

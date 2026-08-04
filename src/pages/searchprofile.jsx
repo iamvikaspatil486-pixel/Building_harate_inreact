@@ -21,10 +21,26 @@ export default function SearchProfile() {
   const [others, setOthers] = useState([]);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef(null);
+  const [showAllBatchmates, setShowAllBatchmates] = useState(false);
+const [allBatchmates, setAllBatchmates] = useState([]);
+const [loadingAll, setLoadingAll] = useState(false);
 
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const batch = JSON.parse(localStorage.getItem('selectedBatch') || 'null');
   const myBatchId = batch?.batchId;
+  
+const fetchAllBatchmates = async () => {
+  setLoadingAll(true);
+  const { data } = await supabase
+    .from('students')
+    .select('id, full_name, nickname, roll_no, batch_id')
+    .eq('batch_id', myBatchId)
+    .eq('is_approved', true)
+    .neq('id', currentUser?.id || 'none')
+    .order('full_name', { ascending: true }); // alphabetical
+  setAllBatchmates(data || []);
+  setLoadingAll(false);
+};
 
   const runSearch = async (text) => {
     if (!text.trim()) {
@@ -176,22 +192,23 @@ export default function SearchProfile() {
         ) : (
           <>
             {/* Batchmates */}
-            {batchmates.length > 0 && (
-              <div className="w-full">
-                <div className="w-full px-4 pt-4 pb-2">
-                  <p className="text-[12px] font-semibold text-cyan-300/90">
-                    {batchmates.length} batchmate{batchmates.length > 1 ? 's' : ''} found
-                  </p>
-                </div>
-
-                <div className="w-full px-4 pb-4 space-y-2.5">
-                  {batchmates.map((s) => (
-                    <StudentCard key={s.id} student={s} isBatchmate={true} />
-                  ))}
-                </div>
-              </div>
-            )}
-
+           {batchmates.length > 0 && (
+  <div className="w-full">
+    <div className="w-full px-4 pt-4 pb-2 flex items-center justify-between">
+      <p className="text-[12px] font-semibold text-cyan-300/90">
+        {batchmates.length} batchmate{batchmates.length > 1 ? 's' : ''} found
+      </p>
+      <button
+        onClick={() => { setShowAllBatchmates(true); fetchAllBatchmates(); }}
+        className="text-[12px] font-semibold text-cyan-300/90 active:scale-95 transition"
+      >
+        View all batchmates 
+      </button>
+    </div>
+    
+  </div>
+)}
+   
             {/* Other batches */}
             {others.length > 0 && (
               <div className="w-full">
@@ -211,6 +228,69 @@ export default function SearchProfile() {
           </>
         )}
       </main>
+  {showAllBatchmates && (
+  <div
+    className="fixed inset-0 z-50 bg-black/50 flex items-end"
+    onClick={(e) => { if (e.target === e.currentTarget) setShowAllBatchmates(false); }}
+  >
+    <div
+      className="w-full rounded-t-3xl flex flex-col shadow-2xl"
+      style={{
+        maxHeight: '85vh',
+        background: '#0f172a',
+        animation: 'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+      }}
+    >
+      <div className="flex justify-center pt-3 pb-1">
+        <div className="w-10 h-1 rounded-full bg-slate-700" />
+      </div>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+        <p className="font-bold text-slate-100 text-sm">All Batchmates</p>
+        <button onClick={() => setShowAllBatchmates(false)} className="text-slate-500">
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {loadingAll ? (
+          <div className="flex justify-center py-12">
+            <Loader2 size={20} className="animate-spin text-slate-500" />
+          </div>
+        ) : (
+          <>
+            {/* Alphabetical group headers */}
+            {Array.from(new Set(allBatchmates.map((s) => s.full_name?.[0]?.toUpperCase()))).sort().map((letter) => (
+              <div key={letter}>
+                <div className="px-4 py-1.5 bg-slate-800/50">
+                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">{letter}</p>
+                </div>
+                {allBatchmates
+                  .filter((s) => s.full_name?.[0]?.toUpperCase() === letter)
+                  .map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => { setShowAllBatchmates(false); navigate(`/viewprofile/${s.id}`); }}
+                      className="flex items-center gap-3 px-4 py-3 border-b border-slate-800/50 active:bg-slate-800/40 transition"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {s.full_name?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-100 truncate">{s.full_name}</p>
+                        {s.roll_no && <p className="text-[11px] text-slate-500">Roll: {s.roll_no}</p>}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+      <div style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }} />
+    </div>
+  </div>
+)}
     </div>
   );
 }
