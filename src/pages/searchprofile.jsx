@@ -192,7 +192,7 @@ const fetchAllBatchmates = async () => {
         ) : (
           <>
             {/* Batchmates */}
-           {batchmates.length > 0 && (
+    {batchmates.length > 0 && (
   <div className="w-full">
     <div className="w-full px-4 pt-4 pb-2 flex items-center justify-between">
       <p className="text-[12px] font-semibold text-cyan-300/90">
@@ -202,10 +202,17 @@ const fetchAllBatchmates = async () => {
         onClick={() => { setShowAllBatchmates(true); fetchAllBatchmates(); }}
         className="text-[12px] font-semibold text-cyan-300/90 active:scale-95 transition"
       >
-        View all batchmates 
+        View all batchmates
       </button>
     </div>
-    
+
+    {/* ← THIS PART WAS MISSING */}
+    <div className="w-full px-4 pb-4 space-y-2.5">
+      {batchmates.map((s) => (
+        <StudentCard key={s.id} student={s} isBatchmate={true} />
+      ))}
+    </div>
+
   </div>
 )}
    
