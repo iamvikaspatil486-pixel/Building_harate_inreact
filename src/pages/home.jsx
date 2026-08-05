@@ -502,8 +502,46 @@ export default function Home() {
   const [currentUser] = useState(() =>
     JSON.parse(localStorage.getItem("anon_user") || "null")
   );
+  const [unreadMoments, setUnreadMoments] = useState(0);
+
+const [unreadMomentsCount, setUnreadMomentsCount] = useState(0);
+
+useEffect(() => {
+  const fetchUnreadCount = async () => {
+    const batch = JSON.parse(localStorage.getItem('selectedBatch') || 'null');
+    if (!currentUser?.id || !batch?.batchId) return;
+
+    // 1. Get all active moments from batchmates (not mine)
+    const { data: moments } = await supabase
+      .from('moments')
+      .select('id')
+      .eq('batch_id', batch.batchId)
+      .neq('student_id', currentUser.id)
+      .gt('expires_at', new Date().toISOString());
+
+    if (!moments?.length) {
+      setUnreadMomentsCount(0);
+      return;
+    }
+
+    // 2. Get which ones I already viewed
+    const { data: views } = await supabase
+      .from('moment_views')
+      .select('moment_id')
+      .eq('viewer_id', currentUser.id)
+      .in('moment_id', moments.map((m) => m.id));
+
+    const viewedSet = new Set((views || []).map((v) => v.moment_id));
+    const unread = moments.filter((m) => !viewedSet.has(m.id)).length;
+
+    setUnreadMomentsCount(unread);
+  };
+
+  fetchUnreadCount();
+}, []);
 
   useEffect(() => { fetchPosts(); }, []);
+
 
   const fetchPosts = async () => {
     setError(null);
@@ -591,12 +629,20 @@ export default function Home() {
   </div>
 
   {/* Right - Moments Button */}
-  <button
-    onClick={() => navigate('/viewmoments')}
-    className="flex items-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-bold px-3.5 h-9 rounded-2xl shadow-md active:scale-95 transition"
-  >
-    ✨ Moments
-  </button>
+ {/* Right - Moments Button */}
+<button
+  onClick={() => navigate('/viewmoments')}
+  className="relative flex items-center gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-bold px-3.5 h-9 rounded-2xl shadow-md active:scale-95 transition"
+>
+  ✨ Moments
+
+  {/* Unread badge */}
+  {unreadMomentsCount > 0 && (
+    <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-slate-950 shadow">
+      {unreadMomentsCount > 9 ? '9+' : unreadMomentsCount}
+    </span>
+  )}
+</button>
 </header>
 
         {loading ? (

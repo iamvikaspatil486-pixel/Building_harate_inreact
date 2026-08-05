@@ -59,16 +59,20 @@ export default function SearchConfession() {
     setLoading(false);
   };
 
-  const fetchSent = async () => {
-    if (!myTokens.length) { setSent([]); return; }
-    const tokens = myTokens.map((t) => t.token);
-    const { data } = await supabase
-      .from('confessions')
-      .select('id, message, created_at, token, sender_alias, status, to_student_id, students!to_student_id(full_name)')
-      .in('token', tokens)
-      .order('created_at', { ascending: false });
-    setSent(data || []);
-  };
+const fetchSent = async () => {
+  if (!currentUser?.id) {
+    setSent([]);
+    return;
+  }
+
+  const { data } = await supabase
+    .from('confessions')
+    .select('id, message, created_at, token, sender_alias, status, to_student_id, students!to_student_id(full_name)')
+    .eq('from_student_id', currentUser.id)
+    .order('created_at', { ascending: false });
+
+  setSent(data || []);
+};
 
   const fetchReceived = async () => {
     if (!currentUser?.id) { setReceived([]); return; }
