@@ -85,6 +85,33 @@ export default function BatchMap() {
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const selectedBatch = JSON.parse(localStorage.getItem('selectedBatch') || '{}');
   const myBatchId = selectedBatch?.batchId || currentUser?.batchId;
+ const watchIdRef = useRef(null); 
+  useEffect(() => {
+  if (!myBatchId) return;
+
+  const ch = supabase.channel(`kuchikus-${myBatchId}`)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'students',
+      filter: `batch_id=eq.${myBatchId}`,
+    }, (payload) => {
+      const s = payload.new;
+      if (s.id === currentUser?.id) return; // ignore own updates
+      if (!s.latitude || !s.longitude) {
+        setStudents((prev) => prev.filter((m) => m.id !== s.id));
+      } else {
+        setStudents((prev) => {
+          const exists = prev.find((m) => m.id === s.id);
+          if (exists) return prev.map((m) => m.id === s.id ? { ...m, ...s } : m);
+          return [...prev, s];
+        });
+      }
+    })
+    .subscribe();
+
+  return () => supabase.removeChannel(ch);
+}, [myBatchId]);
 
   // Check location permission
   useEffect(() => {
@@ -106,19 +133,40 @@ export default function BatchMap() {
   }, []);
 
   // Auto update every 3 minutes
-  useEffect(() => {
-    if (locationEnabled) {
-      intervalRef.current = setInterval(() => {
-        updateMyLocation(false);
-      }, 3 * 60 * 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+ useEffect(() => {
+  if (locationEnabled) {
+    if (!navigator.geolocation) return;
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setMyLocation({ lat: latitude, lng: longitude });
+        await supabase
+          .from('students')
+          .update({
+            latitude,
+            longitude,
+            location_updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentUser.id);
+      },
+      (err) => console.error('Watch error:', err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+  } else {
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [locationEnabled]);
+  return () => {
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  };
+}, [locationEnabled]);
 
   const fetchLocations = async () => {
     if (!myBatchId) return;
