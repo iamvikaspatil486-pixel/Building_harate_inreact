@@ -79,7 +79,7 @@ function UploadSheet({ onClose, onUploaded }) {
     });
   };
 
-  const handleUpload = async () => {
+   const handleUpload = async () => {
     if (!caption.trim()) {
       setError("Please add a caption");
       return;
@@ -88,6 +88,16 @@ function UploadSheet({ onClose, onUploaded }) {
       setError("Add at least one image or PDF");
       return;
     }
+
+    // 21 MB size limit in bytes
+    const MAX_SIZE_BYTES = 21 * 1024 * 1024;
+    const oversizedFile = files.find(({ file }) => file.size > MAX_SIZE_BYTES);
+
+    if (oversizedFile) {
+      setError(`"${oversizedFile.file.name}" exceeds the 21 MB limit. Please upload files under 21 MB.`);
+      return;
+    }
+
     if (!currentUser) {
       setError("You must be logged in");
       return;
@@ -117,8 +127,8 @@ function UploadSheet({ onClose, onUploaded }) {
 
       for (let i = 0; i < files.length; i++) {
         const { file, isPdf } = files[i];
-      const ext = file.name.split(".").pop()?.toLowerCase() || (isPdf ? "pdf" : "jpg");
-const path = `${resource.id}/${Date.now()}_${i}.${ext}`;
+        const ext = file.name.split(".").pop()?.toLowerCase() || (isPdf ? "pdf" : "jpg");
+        const path = `${resource.id}/${Date.now()}_${i}.${ext}`;
 
         setStatusText(`Uploading ${i + 1} of ${total}...`);
 
@@ -138,7 +148,7 @@ const path = `${resource.id}/${Date.now()}_${i}.${ext}`;
             image_url: urlData.publicUrl,
             position: i,
             file_type: file.type.startsWith("image/") ? "image" : "pdf",
-  file_name: file.name,
+            file_name: file.name,
           },
         ]);
 
@@ -161,6 +171,7 @@ const path = `${resource.id}/${Date.now()}_${i}.${ext}`;
       setStatusText("");
     }
   };
+
 
   return (
     <div
