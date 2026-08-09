@@ -657,35 +657,39 @@ export default function Huduku() {
   const sortedImages = (r) =>
     (r.resource_images || []).slice().sort((a, b) => a.position - b.position);
 
-  return (
-    <>
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to   { transform: translateY(0); }
-        }
-      `}</style>
+return (
+  <>
+    <style>{`
+      @keyframes slideUp {
+        from { transform: translateY(100%); }
+        to   { transform: translateY(0); }
+      }
+    `}</style>
 
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white flex flex-col pb-24 relative overflow-hidden">
-        <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-fuchsia-500/20 blur-[110px] rounded-full" />
-        <div className="pointer-events-none absolute bottom-28 right-0 w-56 h-56 bg-cyan-500/15 blur-[90px] rounded-full" />
+    <div className="min-h-screen bg-[#0b0f19] text-white flex flex-col pb-28 relative">
+      {/* soft background glow */}
+      <div className="pointer-events-none absolute top-20 left-1/2 -translate-x-1/2 w-[420px] h-[420px] bg-fuchsia-500/10 blur-[140px] rounded-full" />
 
-        {/* Header */}
-        <header className="sticky top-0 z-10 px-4 py-3 bg-slate-950/70 backdrop-blur-xl border-b border-white/5">
-          <p className="font-black text-sm tracking-[0.18em] uppercase mb-3 bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
-            HUDUKI
-          </p>
+      {/* ========== GOOGLE-STYLE TOP AREA ========== */}
+      <div className="flex-1 flex flex-col items-center px-4 pt-16 sm:pt-24">
 
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-full px-4 py-2.5 gap-2">
-            <SearchIcon size={16} className="text-slate-400 flex-shrink-0" />
+        {/* Logo */}
+        <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-8 bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-pink-300 bg-clip-text text-transparent select-none">
+          HUDUKI
+        </h1>
+
+        {/* Search bar (Google style) */}
+        <div className="w-full max-w-xl">
+          <div className="flex items-center bg-[#151a27] border border-white/10 hover:border-white/20 focus-within:border-fuchsia-400/50 rounded-full px-5 py-3.5 gap-3 shadow-lg shadow-black/20 transition">
+            <SearchIcon size={18} className="text-slate-400 flex-shrink-0" />
             <input
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
                 runSearch(e.target.value);
               }}
-              placeholder="Search e.g. pathology 2nd internals"
-              className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none"
+              placeholder="Search notes, QPs, pathology..."
+              className="flex-1 bg-transparent text-[15px] text-white placeholder-slate-500 outline-none"
             />
             {query && (
               <button
@@ -694,18 +698,26 @@ export default function Huduku() {
                   setResults([]);
                   setSearched(false);
                 }}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white transition"
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             )}
           </div>
-        </header>
 
-        <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full relative z-10">
+          {/* tiny helper text */}
           {!searched && (
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.16em] mb-3">
-              Recent uploads
+            <p className="text-center text-[11px] text-slate-500 mt-3">
+              Find notes & question papers
+            </p>
+          )}
+        </div>
+
+        {/* ========== RESULTS / RECENT ========== */}
+        <div className="w-full max-w-xl mt-10">
+          {!searched && list.length > 0 && (
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3 px-1">
+              Recent
             </p>
           )}
 
@@ -714,9 +726,9 @@ export default function Huduku() {
               <Loader2 size={24} className="animate-spin text-fuchsia-300" />
             </div>
           ) : list.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-20 text-center">
-              <FileText size={40} className="text-slate-600" />
-              <p className="text-white font-bold text-sm">
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <FileText size={36} className="text-slate-600" />
+              <p className="text-slate-300 font-semibold text-sm">
                 {searched ? "No results found" : "No uploads yet"}
               </p>
               <p className="text-slate-500 text-xs">
@@ -724,7 +736,7 @@ export default function Huduku() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {list.map((r) => {
                 const imgs = sortedImages(r);
                 const first = imgs[0];
@@ -734,13 +746,14 @@ export default function Huduku() {
                   <div
                     key={r.id}
                     onClick={() => navigate(`/resource/${r.id}`)}
-                    className="w-full flex gap-3.5 items-start p-3.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/[0.07] transition active:scale-[0.99] cursor-pointer"
+                    className="w-full flex gap-3.5 items-center p-3.5 rounded-2xl bg-[#121826] border border-white/5 hover:border-white/10 hover:bg-[#151c2e] transition cursor-pointer active:scale-[0.99]"
                   >
-                    <div className="w-16 h-16 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
+                    {/* Thumbnail */}
+                    <div className="w-14 h-14 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
                       {first ? (
                         isPdf ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <FileText size={22} className="text-rose-400" />
+                          <div className="flex flex-col items-center gap-0.5">
+                            <FileText size={20} className="text-rose-400" />
                             <span className="text-[9px] text-slate-400 font-bold">PDF</span>
                           </div>
                         ) : (
@@ -751,35 +764,42 @@ export default function Huduku() {
                           />
                         )
                       ) : (
-                        <FileText size={20} className="text-slate-600" />
+                        <FileText size={18} className="text-slate-600" />
                       )}
                     </div>
 
+                    {/* Text */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white leading-snug line-clamp-2">
                         {r.caption}
                       </p>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         {r.college_name && (
-                          <span className="text-[11px] text-cyan-300 font-medium bg-cyan-500/10 border border-cyan-400/20 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] text-cyan-300/90 font-medium bg-cyan-500/10 px-2 py-0.5 rounded-full">
                             {r.college_name}
                           </span>
                         )}
-                        <span className="text-[11px] text-slate-500">{timeAgo(r.created_at)}</span>
+                        <span className="text-[10px] text-slate-500">
+                          {timeAgo(r.created_at)}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          · {imgs.length} file{imgs.length !== 1 ? "s" : ""}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-1">
-                        {imgs.length} file{imgs.length !== 1 ? "s" : ""} · by{" "}
-                        {r.students?.full_name?.split(" ")[0] || "Unknown"}
-                      </p>
                     </div>
 
+                    {/* Like */}
                     <button
                       onClick={(e) => toggleLike(r, e)}
                       className="flex flex-col items-center gap-0.5 flex-shrink-0 self-center px-1 active:scale-90 transition"
                     >
                       <Heart
-                        size={20}
-                        className={r.liked_by_me ? "fill-rose-400 text-rose-400" : "text-slate-500"}
+                        size={18}
+                        className={
+                          r.liked_by_me
+                            ? "fill-rose-400 text-rose-400"
+                            : "text-slate-500"
+                        }
                       />
                       <span
                         className={`text-[10px] font-bold ${
@@ -794,31 +814,32 @@ export default function Huduku() {
               })}
             </div>
           )}
-        </main>
-
-        {/* My Files Button */}
-        <button
-          onClick={() => setShowMyFiles(true)}
-          className="fixed bottom-[152px] right-4 z-30 w-11 h-11 rounded-full bg-white/10 border border-white/15 backdrop-blur flex items-center justify-center text-slate-200 shadow-md active:scale-90 transition"
-        >
-          <FolderOpen size={18} />
-        </button>
-
-        {/* FAB */}
-        <button
-          onClick={() => setShowUpload(true)}
-          className="fixed bottom-24 right-4 z-30 w-14 h-14 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 flex items-center justify-center text-white shadow-lg shadow-fuchsia-500/25 active:scale-90 transition"
-        >
-          <Plus size={24} />
-        </button>
+        </div>
       </div>
 
+      {/* ========== FLOATING ACTIONS (clean) ========== */}
+      <button
+        onClick={() => setShowMyFiles(true)}
+        className="fixed bottom-[152px] right-5 z-30 w-11 h-11 rounded-full bg-[#151a27] border border-white/10 flex items-center justify-center text-slate-300 shadow-lg active:scale-90 transition"
+      >
+        <FolderOpen size={18} />
+      </button>
+
+      <button
+        onClick={() => setShowUpload(true)}
+        className="fixed bottom-24 right-5 z-30 w-14 h-14 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 flex items-center justify-center text-white shadow-xl shadow-fuchsia-500/20 active:scale-90 transition"
+      >
+        <Plus size={24} />
+      </button>
+
+      {/* sheets */}
       {showUpload && (
         <UploadSheet onClose={() => setShowUpload(false)} onUploaded={fetchRecent} />
       )}
       {showMyFiles && (
         <MyFilesSheet onClose={() => setShowMyFiles(false)} onChanged={fetchRecent} />
       )}
-    </>
-  );
+    </div>
+  </>
+);
 }
