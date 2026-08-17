@@ -409,6 +409,10 @@ const [polls, setPolls] = useState({});  // pollId → poll data
     }
   }, []);
 
+ useEffect(() => {
+  localStorage.setItem('chat_last_seen', new Date().toISOString());
+}, []);
+
   // Realtime
   useEffect(() => {
     if (!username || !batchId) return;

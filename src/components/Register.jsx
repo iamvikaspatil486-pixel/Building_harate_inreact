@@ -61,7 +61,9 @@ export default function Register() {
         userId = crypto.randomUUID()
       }
 
-      // Insert student row
+      // Insert student row  
+   const batchId = '27ab0ede-907d-46c9-8f07-7a394eec1b8b';
+
       const { error: profileError } = await supabase
         .from('students')
         .insert([{
@@ -71,8 +73,9 @@ export default function Register() {
           roll_no: rollNo.trim().toUpperCase(),
           email: email.trim() || null,
           password: password,
-          is_approved: false,
-          status: 'pending',
+          is_approved: true,
+          batch_id: batchId,
+          status: 'approved',
         }])
 
       if (profileError) {
@@ -247,37 +250,45 @@ export default function Register() {
                 onClick={handleRegisterSubmit}
                 disabled={loading}
                 className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-slate-900 font-bold rounded-xl transition-colors disabled:opacity-50">
-                {loading ? 'Submitting...' : 'Register ✓'}
+                {loading ? 'creating...' : 'Create'}
               </button>
             </div>
           </div>
         )}
 
         {/* ── STEP 3: Pending ── */}
-        {step === 3 && (
-          <div className="space-y-5 text-center py-4">
-            <div className="w-14 h-14 bg-cyan-950 border border-cyan-800/50 rounded-full flex items-center justify-center text-cyan-400 font-black text-2xl mx-auto mb-2 animate-pulse">
-              ⏰
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Request Sent to Admin!</h2>
-              <p className="text-slate-400 text-xs mt-2 leading-relaxed px-1">
-                Your account for <b>{nickname || fullName}</b> has been submitted successfully.
-              </p>
-              <p className="text-cyan-400/80 text-[11px] font-medium mt-3 bg-cyan-500/5 border border-cyan-500/10 p-2.5 rounded-xl leading-relaxed">
-                Request sent. You'll be able to login once approved.
-              </p>
-            </div>
+  {/* ── STEP 3: Account Created ── */}
+{step === 3 && (
+  <div className="space-y-6 text-center py-6">
+    <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-full flex items-center justify-center text-white font-black text-3xl mx-auto shadow-[0_0_35px_rgba(34,211,238,0.35)]">
+      ✓
+    </div>
 
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors tracking-wide text-xs uppercase">
-              Go to Login Panel
-            </button>
-          </div>
-        )}
+    <div>
+      <h2 className="text-2xl font-black text-white tracking-tight">
+        Account Successfully Created
+      </h2>
 
-      </div>
+      <p className="text-slate-400 text-sm mt-3 leading-relaxed px-2">
+        Your account for{' '}
+        <b className="text-cyan-300">{nickname || fullName}</b> has been created successfully.
+      </p>
+
+      <p className="text-cyan-300 text-sm font-semibold mt-4 leading-relaxed">
+        Enjoy your premium student life with your batchmates.
+      </p>
+    </div>
+
+    <button
+      onClick={() => navigate('/login')}
+      className="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-blue-600 to-violet-600 hover:from-cyan-400 hover:via-blue-500 hover:to-violet-500 text-white font-black rounded-xl transition-all active:scale-[0.98] tracking-wide text-xs uppercase shadow-[0_12px_30px_rgba(37,99,235,0.3)]"
+    >
+      Go to Login Panel
+    </button>
+  </div>
+)}
+
+</div>
 
       {step < 3 && (
         <p className="text-slate-500 text-sm mt-6">
@@ -291,4 +302,3 @@ export default function Register() {
     </div>
   )
 }
-

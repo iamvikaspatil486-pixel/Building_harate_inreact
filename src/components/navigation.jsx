@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
@@ -9,6 +9,7 @@ import {
   UserCircle,
   MapPin,
 } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 const tabs = [
   { icon: MapPin, path: "/kuchikus" },
@@ -21,8 +22,52 @@ const tabs = [
 
 export default function Navigation() {
   const [expanded, setExpanded] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
+
+  const batch = JSON.parse(localStorage.getItem('selectedBatch') || 'null');
+  const batchId = batch?.batchId;
+  const username = JSON.parse(localStorage.getItem('chat_anon_session') || 'null')?.username;
+
+  useEffect(() => {
+    if (!batchId || !username) return;
+
+    const fetchUnread = async () => {
+      const lastSeen = localStorage.getItem('chat_last_seen') || new Date(0).toISOString();
+      const { count } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('batch_id', batchId)
+        .neq('username', username)
+        .gt('created_at', lastSeen);
+      setUnreadCount(count || 0);
+    };
+
+    fetchUnread();
+
+    const ch = supabase.channel(`nav-unread-${batchId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `batch_id=eq.${batchId}`,
+      }, (payload) => {
+        if (payload.new.username !== username) {
+          setUnreadCount((prev) => prev + 1);
+        }
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(ch);
+  }, [batchId, username]);
+
+  useEffect(() => {
+    if (location.pathname === '/chat') {
+      localStorage.setItem('chat_last_seen', new Date().toISOString());
+      setUnreadCount(0);
+    }
+  }, [location.pathname]);
 
   if (location.pathname === "/" || location.pathname === "/login") return null;
 
@@ -76,6 +121,7 @@ export default function Navigation() {
             <div className="flex w-full h-full items-center justify-around animate-fade-in">
               {tabs.map(({ icon: Icon, path }) => {
                 const isActive = location.pathname === path;
+                const isChat = path === '/chat';
                 return (
                   <button
                     key={path}
@@ -83,7 +129,7 @@ export default function Navigation() {
                     className="flex items-center justify-center flex-1 h-full active:scale-90 transition-transform duration-150"
                   >
                     <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
+                      className={`relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
                         isActive
                           ? "bg-white/20 shadow-lg shadow-cyan-500/20"
                           : "bg-white/5 hover:bg-white/10"
@@ -95,6 +141,13 @@ export default function Navigation() {
                         className={isActive ? "text-white" : "text-white/70"}
                         fill={isActive ? "currentColor" : "none"}
                       />
+                      {isChat && unreadCount > 0 && (
+                        <div className="absolute -top-1 -right-1 min-w-[17px] h-[17px] bg-rose-500 rounded-full flex items-center justify-center px-1">
+                          <span className="text-[9px] font-black text-white leading-none">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
@@ -103,13 +156,20 @@ export default function Navigation() {
           ) : (
             <button
               onClick={() => setExpanded(true)}
-              className="flex items-center justify-center w-full h-full text-white active:scale-90 transition-transform duration-150"
+              className="relative flex items-center justify-center w-full h-full text-white active:scale-90 transition-transform duration-150"
               aria-label="Open navigation menu"
             >
               {(() => {
                 const CurrentIcon = tabs.find((t) => t.path === location.pathname)?.icon || Menu;
                 return <CurrentIcon size={22} strokeWidth={2.2} />;
               })()}
+              {location.pathname !== '/chat' && unreadCount > 0 && (
+                <div className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-rose-500 rounded-full flex items-center justify-center px-1">
+                  <span className="text-[9px] font-black text-white leading-none">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                </div>
+              )}
             </button>
           )}
         </div>
@@ -125,7 +185,6 @@ export default function Navigation() {
           from { opacity: 0; transform: translateY(6px) scale(0.96); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
-
         body.comments-open .nav-container-wrapper {
           display: none !important;
           opacity: 0 !important;
@@ -135,3 +194,4 @@ export default function Navigation() {
     </>
   );
 }
+
