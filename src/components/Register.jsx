@@ -617,6 +617,9 @@ function handleRollNoChange(e) {
                   placeholder="Optional email"
                   className="w-full rounded-xl border border-slate-700 bg-slate-800 p-3 text-white outline-none transition focus:border-cyan-500"
                 />
+   <p className="mt-3 text-xs leading-relaxed text-cyan-300/90">
+   *email is required for if u forgot password
+  </p>
               </div>
 
               <div>
