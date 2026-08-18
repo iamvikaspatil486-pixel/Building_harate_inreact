@@ -101,7 +101,7 @@ function handleRollNoChange(e) {
   function openRollComplaint() {
     const cleanRollNo = rollNo.trim();
 
-    navigate('/feedback', {
+    navigate('/registerfeedback', {
       state: {
         rollNo: cleanRollNo,
         complaintType: 'roll_number',
