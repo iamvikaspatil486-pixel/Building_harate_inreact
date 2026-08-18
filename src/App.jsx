@@ -20,7 +20,9 @@ import ResourceDetail from './pages/ResourceDetail';
 import GameList from './components/gamelist';
 import Kuchikus from './pages/kuchikus';
 import TicTacToe from './games/tictactoe';
+import Feedback from './pages/feedback';
 import MiniOmegle from './pages/miniomegle';
+import Rfeedback from './components/Rfeedback';
 
 function AppLayout({ session, setSession }) {
   const location = useLocation();
@@ -42,6 +44,8 @@ function AppLayout({ session, setSession }) {
         <Route path="/login" element={isLoggedIn ? <Navigate to="/home" replace /> : <Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/create-batch" element={<CreateBatch />} />
+      <Route path="/feedback" element={<Feedback />} />
+      <Route path="/registerfeedback" element={<Rfeedback />} />
 
         {/* ── Protected routes ── */}
         <Route path="/home" element={isLoggedIn ? <Home /> : <Navigate to="/" replace />} />

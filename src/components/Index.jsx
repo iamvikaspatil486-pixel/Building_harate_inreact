@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Info, ShieldCheck, MessageSquarePlus, Loader2 } from "lucide-react";
+import { X, Info, ShieldCheck, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 // ─── FEEDBACK MODAL COMPONENT ──────────────────────────────────────────────
@@ -54,7 +54,7 @@ export default function Index() {
         onClick={() => setShowFeedback(true)}
         className="fixed bottom-6 right-6 z-40 w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-600/30 hover:scale-105 transition-all"
       >
-        <MessageSquarePlus size={20} className="text-white" />
+        feedback
       </button>
 
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
@@ -73,10 +73,9 @@ export default function Index() {
             </div>
             <div className="space-y-4">
               {[
-                { icon: "🎓", title: "For College Students", desc: "A private space built exclusively for your batch." },
+                { icon: "🎓", title: "For College Students", desc: "A private space built exclusively for our batch." },
                 { icon: "🎭", title: "Anonymous Chat", desc: "Jump into group chat with a temporary username." },
-                { icon: "📸", title: "Social Feed", desc: "Share posts and moments with your batchmates." },
-                { icon: "🔐", title: "Admin Approved", desc: "Every student is verified by your admin." },
+                { icon: "📸", title: "Social Feed", desc: "Share posts and moments with our batchmates." },
               ].map((item) => (
                 <div key={item.title} className="flex gap-3 items-start bg-white/5 p-3 rounded-xl border border-white/5">
                   <span className="text-lg flex-shrink-0 bg-white/5 w-8 h-8 rounded-lg flex items-center justify-center">{item.icon}</span>
@@ -110,8 +109,7 @@ export default function Index() {
           <div className="w-10 h-[1px] my-8 bg-white/10" />
           <div className="w-full space-y-3 px-2">
             <button onClick={() => navigate("/login")} className="w-full py-3.5 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-blue-600/10">Login</button>
-            <button onClick={() => navigate("/register")} className="w-full py-3.5 bg-white/5 border border-white/5 text-slate-200 font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95">Register</button>
-            <button onClick={() => navigate("/create-batch")} className="w-full py-2.5 text-slate-500 hover:text-white font-bold text-[11px] tracking-wide transition-colors active:scale-95 mt-2">Create a batch →</button>
+            <button onClick={() => navigate("/register")} className="w-full py-3.5 bg-white/5 border border-white/5 text-slate-200 font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95">Create account</button>
           </div>
         </div>
       </div>
