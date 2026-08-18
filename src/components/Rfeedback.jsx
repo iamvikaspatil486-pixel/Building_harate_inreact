@@ -173,6 +173,10 @@ export default function Rfeedback() {
             >
               {loading ? 'Sending...' : 'Send Complaint'}
             </button>
+    <p className="mt-3 text-xs leading-relaxed text-cyan-300/90">
+    if ur roll no. already taken by others u should DM us on Instagram →{" "}
+    <span className="font-bold text-cyan-300">@students_harate</span>
+  </p>
           </form>
         </section>
       </div>
