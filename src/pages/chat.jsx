@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { CreatePollSheet, PollBubble } from '../components/chatpolls';
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause, BarChart2 } from "lucide-react";
+import TypingIndicator from '../components/typingindicator';
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -805,7 +806,7 @@ setPolls(pollMap);
 
       {/* HEADER */}
       <header className="flex-shrink-0 h-16 border-b border-slate-900/60 px-4 flex items-center gap-3 bg-[#090d16]/90 backdrop-blur-md z-10">
-        <button onClick={() => navigate(-1)}
+        <button onClick={() => navigate('/home')}
           className="text-slate-400 hover:text-slate-100 p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80 transition active:scale-90 shadow-md flex items-center justify-center flex-shrink-0">
           <ArrowLeft size={18} />
         </button>
@@ -1112,6 +1113,8 @@ onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
                   <Trash2 size={15} />
                 </button>
               </div>
+  {/*typings*/}
+       <TypingIndicator/>
 
               {/* Tap this to stop + send */}
               <button
@@ -1148,7 +1151,7 @@ onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
                     <X size={16} />
                   </button>
                 )}
-
+        
                 <textarea
                   ref={inputRef}
                   value={text}

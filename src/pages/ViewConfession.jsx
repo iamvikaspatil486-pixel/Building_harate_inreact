@@ -31,8 +31,12 @@ export default function ViewConfession() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+
   const bottomRef = useRef();
   const inputRef = useRef();
+  const channelRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const myTokens = JSON.parse(localStorage.getItem('confession_tokens') || '[]');
@@ -56,10 +60,24 @@ export default function ViewConfession() {
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         }
       )
+      .on('broadcast', { event: 'typing' }, (payload) => {
+        if (payload.payload?.from_role !== role) {
+          setIsOtherTyping(true);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(() => {
+            setIsOtherTyping(false);
+          }, 2500);
+        }
+      })
       .subscribe();
 
-    return () => supabase.removeChannel(ch);
-  }, [id]);
+    channelRef.current = ch;
+
+    return () => {
+      supabase.removeChannel(ch);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [id, role]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -82,6 +100,27 @@ export default function ViewConfession() {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
+  const handleInputChange = (e) => {
+    setText(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { from_role: role },
+      });
+    }
+  };
+
+  // Dismiss keyboard when user scrolls through messages
+  const handleScrollMessages = () => {
+    if (document.activeElement === inputRef.current) {
+      inputRef.current?.blur();
+    }
+  };
+
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
@@ -97,7 +136,12 @@ export default function ViewConfession() {
       }
 
       setText('');
-      inputRef.current?.focus();
+      
+      // Reset input height & close keyboard cleanly
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+        inputRef.current.blur();
+      }
     } catch (err) {
       console.error('Send failed:', err);
     } finally {
@@ -136,11 +180,10 @@ export default function ViewConfession() {
 
   const isMe = (msgRole) => msgRole === role;
 
-  // Original confession should appear on the RIGHT when I am the confessor
   const originalIsMine = role === 'confessor';
 
   return (
-    <div className="fixed inset-0 bg-[#fafafa] flex flex-col">
+    <div className="fixed inset-0 h-[100dvh] bg-[#fafafa] flex flex-col overflow-hidden">
       {/* Header */}
       <header className="flex-shrink-0 bg-white/90 backdrop-blur-md border-b border-gray-100 px-4 h-14 flex items-center gap-3 z-10">
         <button
@@ -162,8 +205,12 @@ export default function ViewConfession() {
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
+      {/* Messages Feed */}
+      <main 
+        onScroll={handleScrollMessages}
+        onTouchMove={handleScrollMessages}
+        className="flex-1 overflow-y-auto px-4 py-5 space-y-4"
+      >
         {/* Original confession bubble */}
         <div className={`flex ${originalIsMine ? 'justify-end' : 'justify-start'}`}>
           <div className={`max-w-[78%] animate-slide-in ${originalIsMine ? 'origin-right' : 'origin-left'}`}>
@@ -190,39 +237,38 @@ export default function ViewConfession() {
         </div>
 
         {/* Reply messages */}
-      {/* Reply messages */}
-{messages.map((msg) => {
-  const fromMe = isMe(msg.from_role);
-  return (
-    <div
-      key={msg.id}
-      className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}
-    >
-      <div
-        className={`max-w-[78%] animate-slide-in ${
-          fromMe ? 'origin-right' : 'origin-left'
-        }`}
-      >
-   <div
-  className={`px-4 py-3 rounded-3xl text-sm leading-relaxed ${
-    fromMe
-      ? 'bg-gradient-to-br from-pink-400 to-rose-500 text-white rounded-tr-md shadow-lg shadow-pink-200/50'
-      : 'bg-white border border-gray-100 text-gray-900 rounded-tl-md'
-  }`}
->
-  {msg.message}
-</div>
-        <p
-          className={`text-[10px] text-gray-400 mt-1.5 px-1 ${
-            fromMe ? 'text-left' : 'text-right'
-          }`}
-        >
-          {timeAgo(msg.created_at)}
-        </p>
-      </div>
-    </div>
-  );
-})}	
+        {messages.map((msg) => {
+          const fromMe = isMe(msg.from_role);
+          return (
+            <div
+              key={msg.id}
+              className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[78%] animate-slide-in ${
+                  fromMe ? 'origin-right' : 'origin-left'
+                }`}
+              >
+                <div
+                  className={`px-4 py-3 rounded-3xl text-sm leading-relaxed ${
+                    fromMe
+                      ? 'bg-gradient-to-br from-pink-400 to-rose-500 text-white rounded-tr-md shadow-lg shadow-pink-200/50'
+                      : 'bg-white border border-gray-100 text-gray-900 rounded-tl-md'
+                  }`}
+                >
+                  {msg.message}
+                </div>
+                <p
+                  className={`text-[10px] text-gray-400 mt-1.5 px-1 ${
+                    fromMe ? 'text-left' : 'text-right'
+                  }`}
+                >
+                  {timeAgo(msg.created_at)}
+                </p>
+              </div>
+            </div>
+          );
+        })}
 
         {messages.length === 0 && (
           <div className="text-center py-10">
@@ -237,12 +283,24 @@ export default function ViewConfession() {
         <div ref={bottomRef} />
       </main>
 
+      {/* Typing Indicator Bar */}
+      {isOtherTyping && (
+        <div className="flex-shrink-0 px-5 py-1.5 flex items-center gap-2 text-xs text-gray-400 bg-[#fafafa]">
+          <span>{theirLabel} is typing</span>
+          <div className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce" />
+          </div>
+        </div>
+      )}
+
       {/* Input bar */}
       <div
         className="flex-shrink-0 bg-white border-t border-gray-100 px-3 py-3 flex items-end gap-2"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
-    <button
+        <button
           onClick={send}
           disabled={!text.trim() || sending}
           className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition flex-shrink-0 bg-blue-500"
@@ -254,11 +312,7 @@ export default function ViewConfession() {
             ref={inputRef}
             value={text}
             rows={1}
-            onChange={(e) => {
-              setText(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
-            }}
+            onChange={handleInputChange}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -270,10 +324,8 @@ export default function ViewConfession() {
             style={{ maxHeight: 100 }}
           />
         </div>
-
       </div>
 
-      {/* Animation styles */}
       <style>{`
         @keyframes slideIn {
           from {
@@ -292,3 +344,4 @@ export default function ViewConfession() {
     </div>
   );
 }
+
