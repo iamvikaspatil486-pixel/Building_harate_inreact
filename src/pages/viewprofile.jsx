@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Loader2, Send, Heart, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, Heart, Sparkles } from 'lucide-react';
 
 const GRAD = [
   'from-violet-500 to-purple-600',
@@ -12,6 +12,13 @@ const GRAD = [
   'from-fuchsia-500 to-pink-500',
 ];
 const grad = (name = '') => GRAD[(name?.charCodeAt(0) || 0) % GRAD.length];
+
+const PREVIEW_MESSAGES = [
+  'You have top tier energy ✨',
+  'I like you ',
+  'We should talk more 💬',
+  'Big fan of your vibe 🔥',
+];
 
 export default function ViewProfile() {
   const { id } = useParams();
@@ -35,7 +42,11 @@ export default function ViewProfile() {
         .eq('id', id)
         .single();
 
-      if (error || !data) { setStudent(null); setLoading(false); return; }
+      if (error || !data) {
+        setStudent(null);
+        setLoading(false);
+        return;
+      }
 
       let batchData = null;
       if (data.batch_id) {
@@ -55,14 +66,36 @@ export default function ViewProfile() {
 
   const sendConfession = async () => {
     if (!confession.trim()) return;
-    if (confession.trim().length < 5) { setError('Too short — write at least 5 characters'); return; }
+    if (confession.trim().length < 5) {
+      setError('Too short — write at least 5 characters');
+      return;
+    }
     setSending(true);
     setError('');
+
     try {
+      // 1. Direct database check: Check if an active chat already exists between sender & receiver
+      if (currentUser?.id) {
+        const { data: existingConfession } = await supabase
+          .from('confessions')
+          .select('id')
+          .eq('from_student_id', currentUser.id)
+          .eq('to_student_id', id)
+          .maybeSingle();
+
+        if (existingConfession) {
+          setSending(false);
+          navigate(`/viewconfession/${existingConfession.id}?role=confessor`);
+          return;
+        }
+      }
+
+      // 2. If no existing chat exists, create a new confession record directly under the sender's account
       const token = crypto.randomUUID();
       const { data, error: insertErr } = await supabase
         .from('confessions')
         .insert({
+          from_student_id: currentUser?.id || null,
           to_student_id: id,
           message: confession.trim(),
           token,
@@ -73,13 +106,10 @@ export default function ViewProfile() {
 
       if (insertErr) throw insertErr;
 
-      const tokens = JSON.parse(localStorage.getItem('confession_tokens') || '[]');
-      tokens.push({ token, confession_id: data.id, to_student_id: id, to_name: student.full_name });
-      localStorage.setItem('confession_tokens', JSON.stringify(tokens));
-
       setConfession('');
       navigate(`/viewconfession/${data.id}?role=confessor`);
     } catch (err) {
+      console.error('Confession send error:', err);
       setError('Failed to send. Try again.');
     } finally {
       setSending(false);
@@ -197,9 +227,26 @@ export default function ViewProfile() {
                     Confess to {student.full_name?.split(' ')[0]}
                   </p>
                 </div>
-                <p className="text-[11px] text-slate-500 mb-4 ml-9 leading-relaxed">
-                  100% anonymous — your identity is never stored.
+                <p className="text-[11px] text-slate-500 mb-3 ml-9 leading-relaxed">
+                  100% anonymous — your identity is never shown to the recipient.
                 </p>
+
+                {/* Quick Suggestion Chips */}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {PREVIEW_MESSAGES.map((msg, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        setConfession(msg);
+                        setError('');
+                      }}
+                      className="text-[11px] bg-white/5 hover:bg-white/10 border border-white/10 px-2.5 py-1 rounded-full text-slate-300 active:scale-95 transition"
+                    >
+                      {msg}
+                    </button>
+                  ))}
+                </div>
 
                 <textarea
                   value={confession}

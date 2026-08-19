@@ -32,6 +32,7 @@ export default function ViewConfession() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [isOtherOnline, setIsOtherOnline] = useState(false);
 
   const bottomRef = useRef();
   const inputRef = useRef();
@@ -46,7 +47,13 @@ export default function ViewConfession() {
     fetchData();
 
     const ch = supabase
-      .channel(`confession-${id}`)
+      .channel(`confession-${id}`, {
+        config: {
+          presence: {
+            key: role,
+          },
+        },
+      })
       .on(
         'postgres_changes',
         {
@@ -69,7 +76,17 @@ export default function ViewConfession() {
           }, 2500);
         }
       })
-      .subscribe();
+      .on('presence', { event: 'sync' }, () => {
+        const presenceState = ch.presenceState();
+        const otherRole = role === 'confessor' ? 'receiver' : 'confessor';
+        const isOnline = Boolean(presenceState[otherRole]);
+        setIsOtherOnline(isOnline);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await ch.track({ online_at: new Date().toISOString(), role });
+        }
+      });
 
     channelRef.current = ch;
 
@@ -187,7 +204,7 @@ export default function ViewConfession() {
       {/* Header */}
       <header className="flex-shrink-0 bg-white/90 backdrop-blur-md border-b border-gray-100 px-4 h-14 flex items-center gap-3 z-10">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="text-gray-500 active:scale-90 transition p-1"
         >
           <ArrowLeft size={22} />
@@ -200,8 +217,16 @@ export default function ViewConfession() {
           </p>
           <p className="text-[11px] text-gray-400">Anonymous confession</p>
         </div>
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-sm flex-shrink-0 shadow-sm">
-          💌
+        <div className="relative flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-sm shadow-sm">
+            💌
+          </div>
+          <span
+            className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+              isOtherOnline ? 'bg-emerald-500' : 'bg-gray-300'
+            }`}
+            title={isOtherOnline ? 'Online' : 'Offline'}
+          />
         </div>
       </header>
 
