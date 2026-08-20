@@ -31,11 +31,12 @@ function AppLayout({ session, setSession }) {
   const localUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const isLoggedIn = !!session || !!localUser;
 
+const currentPath = location.pathname.toLowerCase();
+
   const hideNavBar =
-    location.pathname === '/chat' ||
-  location.pathname.startsWith('/ViewConfession/')||
-    location.pathname.startsWith('/comments/');
- 
+    currentPath === '/chat' ||
+    currentPath.startsWith('/viewconfession') ||
+    currentPath.startsWith('/comments'); 
 
   return (
     <div className="min-h-screen bg-slate-900 relative">
