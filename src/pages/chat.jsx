@@ -436,7 +436,11 @@ const channelRef = useRef(null);
       .filter((u) => u !== username);
     setOnlineUsers(online);
   })
-      .subscribe();
+  .subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await ch.track({ username, online_at: new Date().toISOString() });
+    }
+  });
    channelRef.current = ch;
     return () => supabase.removeChannel(ch);
   }, [username, batchId]);
