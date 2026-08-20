@@ -325,13 +325,6 @@ export default function ViewConfession() {
         className="flex-shrink-0 bg-white border-t border-gray-100 px-3 py-3 flex items-end gap-2"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
-        <button
-          onClick={send}
-          disabled={!text.trim() || sending}
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition flex-shrink-0 bg-blue-500"
-        >
-          {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-        </button>
         <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2.5">
           <textarea
             ref={inputRef}
@@ -349,6 +342,13 @@ export default function ViewConfession() {
             style={{ maxHeight: 100 }}
           />
         </div>
+        <button
+          onClick={send}
+          disabled={!text.trim() || sending}
+          className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-30 active:scale-90 transition flex-shrink-0 bg-blue-500"
+        >
+          {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+        </button>
       </div>
 
       <style>{`

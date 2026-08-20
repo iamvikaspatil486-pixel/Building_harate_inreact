@@ -33,8 +33,9 @@ function AppLayout({ session, setSession }) {
 
   const hideNavBar =
     location.pathname === '/chat' ||
-    location.pathname === '/comments' ||
+  location.pathname.startsWith('/ViewConfession/')||
     location.pathname.startsWith('/comments/');
+ 
 
   return (
     <div className="min-h-screen bg-slate-900 relative">
