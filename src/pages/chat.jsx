@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { CreatePollSheet, PollBubble } from '../components/chatpolls';
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause, BarChart2 } from "lucide-react";
 import TypingIndicator, { useTypingBroadcast } from '../components/TypingIndicator';
+import OnlineUsers from '../components/OnlineUsers';
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -388,7 +389,7 @@ const channelRef = useRef(null);
   const batchId = batch?.batchId;
   const batchName = batch?.batchName || "Batch Chat";
  const { onTyping, stopTyping } = useTypingBroadcast(channelRef, username);
-
+ const [onlineUsers, setOnlineUsers] = useState([]);
   // Close menu on outside tap
   useEffect(() => {
     const handler = (e) => {
@@ -427,6 +428,14 @@ const channelRef = useRef(null);
         (p) => setMessages((prev) => prev.map((m) => m.id === p.new.id ? p.new : m)))
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages", filter: `batch_id=eq.${batchId}` },
         (p) => setMessages((prev) => prev.filter((m) => m.id !== p.old.id)))
+        .on('presence', { event: 'sync' }, () => {
+    const state = ch.presenceState();
+    const online = Object.values(state)
+      .flat()
+      .map((u) => u.username)
+      .filter((u) => u !== username);
+    setOnlineUsers(online);
+  })
       .subscribe();
    channelRef.current = ch;
     return () => supabase.removeChannel(ch);
@@ -825,6 +834,7 @@ setPolls(pollMap);
           </button>
         )}
       </header>
+  <OnlineUsers onlineUsers={onlineUsers} />
 
       {/* MESSAGES */}
       <main className="flex-1 overflow-y-auto px-4 py-4 space-y-3 max-w-3xl w-full mx-auto overscroll-contain">
