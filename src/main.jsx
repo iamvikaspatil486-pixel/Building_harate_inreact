@@ -2,6 +2,17 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+// Eruda mobile debugger — remove before production
+// In main.jsx or App.jsx at top
+if (typeof window !== 'undefined') {
+  const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
+  if (currentUser?.roll === '195') {
+    const script = document.createElement('script');
+    script.src = '//cdn.jsdelivr.net/npm/eruda';
+    script.onload = () => window.eruda.init();
+    document.head.appendChild(script);
+  }
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

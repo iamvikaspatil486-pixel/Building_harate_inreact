@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { CreatePollSheet, PollBubble } from '../components/chatpolls';
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Check, X, Reply, Plus, Image, Mic, Play, Pause, BarChart2 } from "lucide-react";
-import TypingIndicator from '../components/typingindicator';
+import TypingIndicator, { useTypingBroadcast } from '../components/TypingIndicator';
 
 const SESSION_KEY = "chat_anon_session";
 const HOURS = 10;
@@ -377,6 +377,7 @@ const [polls, setPolls] = useState({});  // pollId → poll data
   const audioElRef = useRef(null);
 
   const bottomRef = useRef();
+const channelRef = useRef(null);
   const messageRefs = useRef({});
   const [highlightedId, setHighlightedId] = useState(null);
   const inputRef = useRef();
@@ -386,6 +387,7 @@ const [polls, setPolls] = useState({});  // pollId → poll data
   const currentUser = JSON.parse(localStorage.getItem("anon_user") || "null");
   const batchId = batch?.batchId;
   const batchName = batch?.batchName || "Batch Chat";
+ const { onTyping, stopTyping } = useTypingBroadcast(channelRef, username);
 
   // Close menu on outside tap
   useEffect(() => {
@@ -426,6 +428,7 @@ const [polls, setPolls] = useState({});  // pollId → poll data
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages", filter: `batch_id=eq.${batchId}` },
         (p) => setMessages((prev) => prev.filter((m) => m.id !== p.old.id)))
       .subscribe();
+   channelRef.current = ch;
     return () => supabase.removeChannel(ch);
   }, [username, batchId]);
 
@@ -527,6 +530,7 @@ setPolls(pollMap);
     setReplyTo(null);
     setSending(false);
     if (inputRef.current) inputRef.current.style.height = "auto";
+   stopTyping();
   };
 
   // — PHOTO: pick from gallery —
@@ -987,6 +991,11 @@ setPolls(pollMap);
         )}
         <div ref={bottomRef} />
       </main>
+    <TypingIndicator
+  channelRef={channelRef}
+  username={username}
+  batchId={batchId}
+/>
 
       {/* REPLY PREVIEW BAR */}
       {replyTo && (
@@ -1160,6 +1169,7 @@ onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
                     setText(e.target.value);
                     e.target.style.height = "auto";
                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                onTyping();
                   }}
                   onFocus={() => setAttachOpen(false)}
                   onKeyDown={(e) => {
