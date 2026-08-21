@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Info, ShieldCheck, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import PwaInstall from "./PwaInstall";
 
 // ─── FEEDBACK MODAL COMPONENT ──────────────────────────────────────────────
 function FeedbackModal({ onClose }) {
@@ -48,6 +49,7 @@ export default function Index() {
 
   return (
     <div className="fixed inset-0 bg-[#000000] text-white flex flex-col justify-between overflow-hidden select-none">
+   <PwaInstall />
       
       {/* ─── FLOATING FEEDBACK BUTTON (Bottom Right) ─── */}
       <button 

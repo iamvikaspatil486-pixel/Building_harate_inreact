@@ -55,7 +55,7 @@ export function useTypingBroadcast(channelRef, username) {
 
   const broadcastTyping = (isTyping) => {
     try {
-      if (channelRef.current) {
+      if (channelRef?.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'typing',
@@ -74,6 +74,7 @@ export function useTypingBroadcast(channelRef, username) {
   };
 
   const stopTyping = () => {
+  if (!channelRef?.current) return;
     clearTimeout(timeoutRef.current);
     broadcastTyping(false);
   };
