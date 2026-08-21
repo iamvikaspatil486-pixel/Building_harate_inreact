@@ -1137,7 +1137,6 @@ onClick={() => { navigate('/gamelist'); setAttachOpen(false); }}
                 </button>
               </div>
   {/*typings*/}
-       <TypingIndicator/>
 
               {/* Tap this to stop + send */}
               <button
