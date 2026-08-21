@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import CmBubble from "../components/CmBubble"; // adjust path if needed
 
 const timeAgo = (ts) => {
   if (!ts) return 'just now';
@@ -42,6 +43,24 @@ export default function ViewConfession() {
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const myTokens = JSON.parse(localStorage.getItem('confession_tokens') || '[]');
   const myToken = myTokens.find((t) => t.confession_id === id);
+  const handleEdit = async (msgId, newText) => {
+  await supabase
+    .from("confession_messages")
+    .update({ message: newText, edited: true })
+    .eq("id", msgId);
+
+  setMessages((prev) =>
+    prev.map((m) =>
+      m.id === msgId ? { ...m, message: newText, edited: true } : m
+    )
+  );
+};
+
+const handleDelete = async (msgId) => {
+  if (!window.confirm("Delete this message?")) return;
+  await supabase.from("confession_messages").delete().eq("id", msgId);
+  setMessages((prev) => prev.filter((m) => m.id !== msgId));
+};
 
   useEffect(() => {
     fetchData();
@@ -237,63 +256,29 @@ export default function ViewConfession() {
         className="flex-1 overflow-y-auto px-4 py-5 space-y-4"
       >
         {/* Original confession bubble */}
-        <div className={`flex ${originalIsMine ? 'justify-end' : 'justify-start'}`}>
-          <div className={`max-w-[78%] animate-slide-in ${originalIsMine ? 'origin-right' : 'origin-left'}`}>
-            {!originalIsMine && (
-              <p className="text-[10px] text-gray-400 mb-1 px-1">{theirLabel}</p>
-            )}
-            <div
-              className={`px-4 py-3 rounded-3xl text-sm leading-relaxed shadow-sm ${
-                originalIsMine
-                  ? 'bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-tr-md'
-                  : 'bg-white border border-gray-100 text-gray-900 rounded-tl-md'
-              }`}
-            >
-              {confession.message}
-            </div>
-            <p
-              className={`text-[10px] text-gray-400 mt-1.5 px-1 ${
-                originalIsMine ? 'text-right' : 'text-left'
-              }`}
-            >
-              {timeAgo(confession.created_at)}
-            </p>
-          </div>
-        </div>
+   {/* Original confession */}
+<CmBubble
+  message={{
+    message: confession.message,
+    created_at: confession.created_at,
+    type: "text",
+  }}
+  fromMe={originalIsMine}
+  showName={!originalIsMine}
+  nameLabel={theirLabel}
+  isOriginal
+/>
 
-        {/* Reply messages */}
-        {messages.map((msg) => {
-          const fromMe = isMe(msg.from_role);
-          return (
-            <div
-              key={msg.id}
-              className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[78%] animate-slide-in ${
-                  fromMe ? 'origin-right' : 'origin-left'
-                }`}
-              >
-                <div
-                  className={`px-4 py-3 rounded-3xl text-sm leading-relaxed ${
-                    fromMe
-                      ? 'bg-gradient-to-br from-pink-400 to-rose-500 text-white rounded-tr-md shadow-lg shadow-pink-200/50'
-                      : 'bg-white border border-gray-100 text-gray-900 rounded-tl-md'
-                  }`}
-                >
-                  {msg.message}
-                </div>
-                <p
-                  className={`text-[10px] text-gray-400 mt-1.5 px-1 ${
-                    fromMe ? 'text-left' : 'text-right'
-                  }`}
-                >
-                  {timeAgo(msg.created_at)}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+{/* Reply messages */}
+ {messages.map((msg) => (
+  <CmBubble
+    key={msg.id}
+    message={msg}
+    fromMe={isMe(msg.from_role)}
+    onEdit={handleEdit}
+    onDelete={handleDelete}
+  />
+))}
 
         {messages.length === 0 && (
           <div className="text-center py-10">
