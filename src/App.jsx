@@ -23,6 +23,7 @@ import TicTacToe from './games/tictactoe';
 import Feedback from './pages/feedback';
 import MiniOmegle from './pages/miniomegle';
 import Rfeedback from './components/Rfeedback';
+import ResetPassword from './pages/resetpassword';
 
 function AppLayout({ session, setSession }) {
   const location = useLocation();
@@ -49,6 +50,7 @@ const currentPath = location.pathname.toLowerCase();
         <Route path="/create-batch" element={<CreateBatch />} />
       <Route path="/feedback" element={<Feedback />} />
       <Route path="/registerfeedback" element={<Rfeedback />} />
+  <Route path="/resetpassword" element={<ResetPassword />} />
 
         {/* ── Protected routes ── */}
         <Route path="/home" element={isLoggedIn ? <Home /> : <Navigate to="/" replace />} />

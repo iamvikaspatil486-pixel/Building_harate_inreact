@@ -35,14 +35,14 @@ export default function Login() {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(student.email, {
         redirectTo: window.location.hostname === 'localhost'
-          ? 'http://localhost:5174/reset-password'
-          : 'https://studentsharate.me/reset-password',
+          ? 'http://localhost:5174/resetpassword'
+          : 'https://studentsharate.me/resetpassword',
       })
 
       if (error) {
         setError(error.message)
       } else {
-        alert(`✅ Password reset link sent to ${student.email}\n\nCheck your inbox (and spam folder)!`)
+        alert(`✅ Password reset link sent to ${student.email}\n\nCheck your inbox!`)
       }
     } catch (err) {
       setError('Something went wrong. Try again.')
