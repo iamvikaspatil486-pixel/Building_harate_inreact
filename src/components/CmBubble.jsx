@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Pencil, Trash2, Check, X } from "lucide-react";
 
 const timeAgo = (ts) => {
@@ -26,18 +26,33 @@ export default function CmBubble({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(message.message || "");
-  const holdTimer = useRef(null);
+  const menuRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const type = message?.type || "text";
   const canModify = fromMe && !isOriginal && type === "text"; // only own replies
 
-  const startHold = () => {
-    if (!canModify) return;
-    holdTimer.current = setTimeout(() => setMenuOpen(true), 450);
-  };
+  // Close the menu on an outside tap/click. Using a document-level
+  // listener (instead of a full-screen overlay <div>) avoids the
+  // z-index / touch-event race that was previously eating taps on
+  // the Edit/Delete buttons on mobile.
+  useEffect(() => {
+    if (!menuOpen) return;
 
-  const endHold = () => {
-    if (holdTimer.current) clearTimeout(holdTimer.current);
+    const handleOutside = (e) => {
+      if (menuRef.current?.contains(e.target)) return;
+      if (triggerRef.current?.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handleOutside, true);
+    return () => document.removeEventListener("pointerdown", handleOutside, true);
+  }, [menuOpen]);
+
+  const toggleMenu = (e) => {
+    e.stopPropagation();
+    if (!canModify) return;
+    setMenuOpen((open) => !open);
   };
 
   const saveEdit = () => {
@@ -51,24 +66,27 @@ export default function CmBubble({
     setMenuOpen(false);
   };
 
+  const handleEditClick = (e) => {
+    e.stopPropagation();
+    setEditText(message.message || "");
+    setEditing(true);
+    setMenuOpen(false);
+  };
+
+  const handleDeleteClick = (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    // Opens a confirmation modal in the parent — does not delete
+    // immediately.
+    onDelete?.(message.id);
+  };
+
   return (
     <div className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
       <div
         className={`relative max-w-[78%] animate-slide-in ${
           fromMe ? "origin-right" : "origin-left"
         }`}
-        onTouchStart={startHold}
-        onTouchEnd={endHold}
-        onTouchMove={endHold}
-        onMouseDown={startHold}
-        onMouseUp={endHold}
-        onMouseLeave={endHold}
-        onContextMenu={(e) => {
-          if (canModify) {
-            e.preventDefault();
-            setMenuOpen(true);
-          }
-        }}
       >
         {showName && !fromMe && (
           <p className="text-[10px] text-gray-400 mb-1 px-1">{nameLabel}</p>
@@ -95,7 +113,10 @@ export default function CmBubble({
             </button>
           </div>
         ) : (
-          <>
+          <div className="flex items-end gap-1">
+            {/* Kebab trigger sits to the LEFT of your own bubbles so it
+                doesn't overlap the bubble's rounded corner */}
+
             {/* TEXT BUBBLE */}
             {type === "text" && (
               <div
@@ -111,35 +132,30 @@ export default function CmBubble({
               </div>
             )}
 
-            {/* Hold menu */}
-            {menuOpen && canModify && (
-              <div
-                className={`absolute z-20 top-0 ${
-                  fromMe ? "right-0" : "left-0"
-                } bg-white shadow-xl rounded-xl border border-gray-100 py-1 w-32`}
-              >
-                <button
-                  onClick={() => {
-                    setEditText(message.message || "");
-                    setEditing(true);
-                    setMenuOpen(false);
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-gray-800 hover:bg-gray-50"
-                >
-                  <Pencil size={14} className="text-blue-500" /> Edit
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete?.(message.id);
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-rose-500 hover:bg-rose-50"
-                >
-                  <Trash2 size={14} /> Delete
-                </button>
-              </div>
-            )}
-          </>
+          </div>
+        )}
+
+        {/* Dropdown menu */}
+        {menuOpen && canModify && (
+          <div
+            ref={menuRef}
+            className={`absolute z-20 bottom-full mb-1 ${
+              fromMe ? "right-0" : "left-0"
+            } bg-white shadow-xl rounded-xl border border-gray-100 py-1 w-32`}
+          >
+            <button
+              onClick={handleEditClick}
+              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-gray-800 hover:bg-gray-50 active:bg-gray-100"
+            >
+              <Pencil size={14} className="text-blue-500" /> Edit
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-rose-500 hover:bg-rose-50 active:bg-rose-100"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
         )}
 
         {/* time + edited label */}
@@ -154,14 +170,7 @@ export default function CmBubble({
           )}
         </p>
       </div>
-
-      {/* tap outside closes menu */}
-      {menuOpen && (
-        <div
-          className="fixed inset-0 z-10"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
     </div>
   );
 }
+

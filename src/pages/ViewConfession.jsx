@@ -43,24 +43,6 @@ export default function ViewConfession() {
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
   const myTokens = JSON.parse(localStorage.getItem('confession_tokens') || '[]');
   const myToken = myTokens.find((t) => t.confession_id === id);
-  const handleEdit = async (msgId, newText) => {
-  await supabase
-    .from("confession_messages")
-    .update({ message: newText, edited: true })
-    .eq("id", msgId);
-
-  setMessages((prev) =>
-    prev.map((m) =>
-      m.id === msgId ? { ...m, message: newText, edited: true } : m
-    )
-  );
-};
-
-const handleDelete = async (msgId) => {
-  if (!window.confirm("Delete this message?")) return;
-  await supabase.from("confession_messages").delete().eq("id", msgId);
-  setMessages((prev) => prev.filter((m) => m.id !== msgId));
-};
 
   useEffect(() => {
     fetchData();
@@ -82,7 +64,10 @@ const handleDelete = async (msgId) => {
           filter: `confession_id=eq.${id}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         }
       )
@@ -172,7 +157,7 @@ const handleDelete = async (msgId) => {
       }
 
       setText('');
-      
+
       // Reset input height & close keyboard cleanly
       if (inputRef.current) {
         inputRef.current.style.height = 'auto';
@@ -249,36 +234,40 @@ const handleDelete = async (msgId) => {
         </div>
       </header>
 
+      {/* Notice */}
+      <div className="flex-shrink-0 text-center px-4 py-1.5 bg-[#fafafa]">
+        <p className="text-[10px] text-gray-400">
+          You cannot edit or delete messages
+        </p>
+      </div>
+
       {/* Messages Feed */}
-      <main 
+      <main
         onScroll={handleScrollMessages}
         onTouchMove={handleScrollMessages}
         className="flex-1 overflow-y-auto px-4 py-5 space-y-4"
       >
         {/* Original confession bubble */}
-   {/* Original confession */}
-<CmBubble
-  message={{
-    message: confession.message,
-    created_at: confession.created_at,
-    type: "text",
-  }}
-  fromMe={originalIsMine}
-  showName={!originalIsMine}
-  nameLabel={theirLabel}
-  isOriginal
-/>
+        <CmBubble
+          message={{
+            message: confession.message,
+            created_at: confession.created_at,
+            type: "text",
+          }}
+          fromMe={originalIsMine}
+          showName={!originalIsMine}
+          nameLabel={theirLabel}
+          isOriginal
+        />
 
-{/* Reply messages */}
- {messages.map((msg) => (
-  <CmBubble
-    key={msg.id}
-    message={msg}
-    fromMe={isMe(msg.from_role)}
-    onEdit={handleEdit}
-    onDelete={handleDelete}
-  />
-))}
+        {/* Reply messages */}
+        {messages.map((msg) => (
+          <CmBubble
+            key={msg.id}
+            message={msg}
+            fromMe={isMe(msg.from_role)}
+          />
+        ))}
 
         {messages.length === 0 && (
           <div className="text-center py-10">
