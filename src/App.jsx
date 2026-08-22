@@ -36,6 +36,7 @@ const currentPath = location.pathname.toLowerCase();
   const hideNavBar =
     currentPath === '/chat' ||
     currentPath.startsWith('/viewconfession') ||
+  currentPath.startsWith('/tictactoe')||
     currentPath.startsWith('/comments'); 
 
   return (

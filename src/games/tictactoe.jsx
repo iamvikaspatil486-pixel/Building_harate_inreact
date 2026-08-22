@@ -1,22 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Loader2, Copy, Check, Users, Hash, Send, SmilePlus } from 'lucide-react';
-
-const LINES = [
-  [0,1,2],[3,4,5],[6,7,8],
-  [0,3,6],[1,4,7],[2,5,8],
-  [0,4,8],[2,4,6]
-];
-
-const checkWinner = (board) => {
-  for (const [a,b,c] of LINES) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return { winner: board[a], line: [a,b,c] };
-    }
-  }
-  return null;
-};
+import { ArrowLeft, Loader2, Copy, Users, Hash, Send } from 'lucide-react';
+import TTTBoard, { checkWinner } from '../components/TTTBoard';
 
 const genRoomCode = () => Math.random().toString(36).slice(2,8).toUpperCase();
 
@@ -461,7 +447,7 @@ function Game({ game: initialGame, mySymbol, myUsername, onLeave }) {
     }).eq('id', game.id);
   };
 
-const statusText = () => {
+  const statusText = () => {
     if (!game.player2) return 'Waiting for opponent…';
     if (winner) return winner === mySymbol ? '🎉 You won!' : `😢 ${opponentUsername} won`;
     if (isDraw) return "🤝 It's a draw!";
@@ -503,20 +489,13 @@ const statusText = () => {
         </p>
 
         {/* Board */}
-        <div className="grid grid-cols-3 gap-3 px-6 mb-4">
-          {board.map((cell, i) => {
-            const isWinning = winningLine.includes(i);
-            return (
-              <button key={i} onClick={() => handleClick(i)}
-                className={`aspect-square rounded-2xl text-4xl font-black flex items-center justify-center transition-all active:scale-90
-                  ${isWinning ? 'bg-emerald-100 border-2 border-emerald-400 scale-105' : 'bg-white border border-gray-200 shadow-sm'}
-                  ${!cell && isMyTurn && !winner && !isDraw ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'}
-                `}>
-                <span className={cell === 'X' ? 'text-blue-500' : cell === 'O' ? 'text-red-500' : ''}>{cell}</span>
-              </button>
-            );
-          })}
-        </div>
+        <TTTBoard
+          board={board}
+          winningLine={winningLine}
+          isMyTurn={isMyTurn}
+          onCellClick={handleClick}
+          disabled={!!winner || isDraw}
+        />
 
         {/* Rematch/Leave */}
         {(winner || isDraw) && (
@@ -585,8 +564,7 @@ export default function TicTacToe() {
   const [mySymbol, setMySymbol] = useState('X');
 
   const currentUser = JSON.parse(localStorage.getItem('anon_user') || 'null');
-  const chatSession = JSON.parse(localStorage.getItem('chat_anon_session') || 'null');
-  const myUsername = chatSession?.username || currentUser?.name || 'Player';
+  const myUsername = currentUser?.name || 'Player';
 
   const handleJoinGame = (game, symbol) => { setCurrentGame(game); setMySymbol(symbol); setPhase('game'); };
   const handleLeave = () => { setCurrentGame(null); setPhase('lobby'); };
