@@ -24,6 +24,7 @@ import Feedback from './pages/feedback';
 import MiniOmegle from './pages/miniomegle';
 import Rfeedback from './components/Rfeedback';
 import ResetPassword from './pages/resetpassword';
+import AirPiano from './pages/airpiano';
 
 function AppLayout({ session, setSession }) {
   const location = useLocation();
@@ -68,6 +69,7 @@ const currentPath = location.pathname.toLowerCase();
         <Route path="/viewprofile/:id" element={isLoggedIn ? <ViewProfile /> : <Navigate to="/" replace />} />
         <Route path="/SearchConfession" element={isLoggedIn ? <SearchConfession /> : <Navigate to="/" replace />} />
         <Route path="/ViewConfession/:id" element={isLoggedIn ? <ViewConfession /> : <Navigate to="/" replace />} />
+      <Route path="/airpiano" element={isLoggedIn ? <AirPiano /> : <Navigate to="/" replace />} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to={isLoggedIn ? "/home" : "/"} replace />} />
