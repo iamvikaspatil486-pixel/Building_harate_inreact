@@ -278,10 +278,10 @@ export default function MiniOmegle() {
 
     try {
       await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.4.1675469404/hands.js"
+        "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
       );
       await loadScript(
-        "https://cdnjs.cloudflare.com/ajax/libs/mediapipe-camera_utils/0.3.1640029074/camera_utils.js"
+        "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
       );
     } catch (err) {
       setErrorMsg("Failed to load hand-tracking library: " + err.message);
@@ -301,7 +301,7 @@ export default function MiniOmegle() {
 
     const hands = new HandsCtor({
       locateFile: (file) =>
-        `https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.4.1675469404/${file}`,
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
     hands.setOptions({
       maxNumHands: 2,
