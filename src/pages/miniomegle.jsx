@@ -28,7 +28,7 @@ function loadScript(src) {
     s.src = src;
     s.crossOrigin = "anonymous";
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load " + src));
+    s.onerror = () => reject(new Error("Failed to load script"));
     document.body.appendChild(s);
   });
 }
@@ -44,20 +44,28 @@ export default function MiniOmegle() {
   const cameraRef = useRef(null);
   const streamRef = useRef(null);
 
-  const [phase, setPhase] = useState("idle"); // idle | loading | running | error
+  const [phase, setPhase] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [octave, setOctave] = useState(4);
   const [waveform, setWaveform] = useState("triangle");
+  
   const octaveRef = useRef(octave);
   const waveformRef = useRef(waveform);
 
-  useEffect(() => { octaveRef.current = octave; layoutKeys(); }, [octave]);
-  useEffect(() => { waveformRef.current = waveform; }, [waveform]);
+  useEffect(() => {
+    octaveRef.current = octave;
+    layoutKeys();
+  }, [octave]);
+
+  useEffect(() => {
+    waveformRef.current = waveform;
+  }, [waveform]);
 
   const layoutKeys = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const W = canvas.width, H = canvas.height;
+    const W = canvas.width;
+    const H = canvas.height;
     const keyboardTop = H * 0.55;
     const keyboardHeight = H * 0.4;
     const whiteCount = WHITE_STEPS.length;
@@ -65,8 +73,11 @@ export default function MiniOmegle() {
     const oct = octaveRef.current;
 
     const rects = [];
+    
+    // Layout White Keys
     for (let i = 0; i < whiteCount; i++) {
       rects.push({
+        id: `w_${i}`,
         type: "white",
         x: i * whiteW,
         y: keyboardTop,
@@ -76,15 +87,18 @@ export default function MiniOmegle() {
         name: WHITE_NAMES[i],
         active: false,
         fingers: new Set(),
-        triggerY: keyboardTop + keyboardHeight * 0.12,
+        triggerY: keyboardTop + 10,
       });
     }
-    const blackW = whiteW * 0.6;
-    const blackH = keyboardHeight * 0.62;
-    BLACK_KEYS.forEach((bk) => {
+
+    // Layout Black Keys
+    const blackW = whiteW * 0.58;
+    const blackH = keyboardHeight * 0.6;
+    BLACK_KEYS.forEach((bk, idx) => {
       if (bk.after >= whiteCount) return;
       const centerX = (bk.after + 1) * whiteW;
       rects.push({
+        id: `b_${idx}`,
         type: "black",
         x: centerX - blackW / 2,
         y: keyboardTop,
@@ -94,9 +108,10 @@ export default function MiniOmegle() {
         name: bk.name,
         active: false,
         fingers: new Set(),
-        triggerY: keyboardTop + blackH * 0.18,
+        triggerY: keyboardTop + 10,
       });
     });
+
     keyRectsRef.current = rects;
   }, []);
 
@@ -104,144 +119,215 @@ export default function MiniOmegle() {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume();
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
   }, []);
 
-  const playNote = useCallback((freq) => {
+  const playNote = useCallback((freq, voiceId) => {
     ensureAudio();
     const ctx = audioCtxRef.current;
-    const key = freq.toFixed(2);
-    if (voicesRef.current[key]) return;
+    if (voicesRef.current[voiceId]) return;
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+
     osc.type = waveformRef.current;
     osc.frequency.value = freq;
-    gain.gain.value = 0;
-    osc.connect(gain).connect(ctx.destination);
-    const now = ctx.currentTime;
-    gain.gain.linearRampToValueAtTime(0.22, now + 0.02);
+
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.03);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
     osc.start();
-    voicesRef.current[key] = { osc, gain };
+
+    voicesRef.current[voiceId] = { osc, gain };
   }, [ensureAudio]);
 
-  const stopNote = useCallback((freq) => {
+  const stopNote = useCallback((voiceId) => {
     const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    const key = freq.toFixed(2);
-    const v = voicesRef.current[key];
-    if (!v) return;
+    const voice = voicesRef.current[voiceId];
+    if (!ctx || !voice) return;
+
+    const { osc, gain } = voice;
     const now = ctx.currentTime;
-    v.gain.gain.cancelScheduledValues(now);
-    v.gain.gain.setValueAtTime(v.gain.gain.value, now);
-    v.gain.gain.linearRampToValueAtTime(0, now + 0.18);
-    v.osc.stop(now + 0.2);
-    delete voicesRef.current[key];
+
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.1);
+    osc.stop(now + 0.12);
+
+    delete voicesRef.current[voiceId];
   }, []);
 
   const findKeyAt = (x, y) => {
     const rects = keyRectsRef.current;
+    // Check black keys first (top priority layer)
     for (const k of rects) {
-      if (k.type !== "black") continue;
-      if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) return k;
+      if (k.type === "black" && x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) {
+        return k;
+      }
     }
+    // Check white keys next
     for (const k of rects) {
-      if (k.type !== "white") continue;
-      if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) return k;
+      if (k.type === "white" && x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) {
+        return k;
+      }
     }
     return null;
   };
 
-  const drawKeys = (ctx) => {
-    keyRectsRef.current.filter((k) => k.type === "white").forEach((k) => {
-      ctx.fillStyle = k.active ? "#b9a9ff" : "#f4f2f8";
-      ctx.fillRect(k.x, k.y, k.w - 2, k.h);
-      ctx.strokeStyle = "rgba(0,0,0,0.25)";
-      ctx.strokeRect(k.x, k.y, k.w - 2, k.h);
+  const drawKeyboard = (ctx) => {
+    const rects = keyRectsRef.current;
+
+    // 1. Draw White Keys
+    rects.filter((k) => k.type === "white").forEach((k) => {
+      ctx.save();
+      
+      // Key body
+      const gradient = ctx.createLinearGradient(0, k.y, 0, k.y + k.h);
+      if (k.active) {
+        gradient.addColorStop(0, "#8b5cf6");
+        gradient.addColorStop(1, "#6d28d9");
+      } else {
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(0.85, "#ededed");
+        gradient.addColorStop(1, "#d1d5db");
+      }
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.roundRect(k.x + 2, k.y, k.w - 4, k.h, [0, 0, 8, 8]);
+      ctx.fill();
+
+      // Border line
+      ctx.strokeStyle = "rgba(0,0,0,0.15)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Label (inversed canvas compensation for standard read orientation)
       ctx.save();
       ctx.scale(-1, 1);
-      ctx.fillStyle = "#33314a";
-      ctx.font = "13px sans-serif";
+      ctx.fillStyle = k.active ? "#ffffff" : "#374151";
+      ctx.font = "bold 14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(k.name, -(k.x + k.w / 2), k.y + k.h - 12);
+      ctx.fillText(k.name, -(k.x + k.w / 2), k.y + k.h - 16);
+      ctx.restore();
+
       ctx.restore();
     });
-    keyRectsRef.current.filter((k) => k.type === "black").forEach((k) => {
-      ctx.fillStyle = k.active ? "#6d4dff" : "#1a1b22";
-      ctx.fillRect(k.x, k.y, k.w, k.h);
+
+    // 2. Draw Black Keys
+    rects.filter((k) => k.type === "black").forEach((k) => {
+      ctx.save();
+
+      const gradient = ctx.createLinearGradient(0, k.y, 0, k.y + k.h);
+      if (k.active) {
+        gradient.addColorStop(0, "#a855f7");
+        gradient.addColorStop(1, "#7e22ce");
+      } else {
+        gradient.addColorStop(0, "#374151");
+        gradient.addColorStop(0.8, "#1f2937");
+        gradient.addColorStop(1, "#111827");
+      }
+
+      ctx.fillStyle = gradient;
+      ctx.shadowColor = "rgba(0,0,0,0.4)";
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 4;
+
+      ctx.beginPath();
+      ctx.roundRect(k.x, k.y, k.w, k.h, [0, 0, 4, 4]);
+      ctx.fill();
+
+      // Key edge highlights
+      ctx.strokeStyle = k.active ? "#c084fc" : "#4b5563";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.restore();
     });
   };
 
   const drawFingertip = (ctx, x, y, active) => {
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, active ? 14 : 9, 0, Math.PI * 2);
-    ctx.fillStyle = active ? "rgba(124,92,255,0.9)" : "rgba(34,211,238,0.85)";
+    ctx.arc(x, y, active ? 12 : 8, 0, Math.PI * 2);
+    ctx.fillStyle = active ? "rgba(236, 72, 153, 0.9)" : "rgba(6, 182, 212, 0.8)";
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.strokeStyle = "#ffffff";
     ctx.stroke();
+    ctx.restore();
   };
 
   const onResults = useCallback((results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawKeys(ctx);
 
-    const seen = new Set();
-    const fingerMap = activeFingerMapRef.current;
+    // Render interactive air piano graphics
+    drawKeyboard(ctx);
+
+    const activeFingers = activeFingerMapRef.current;
+    const currentFrameFingers = new Set();
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length) {
       results.multiHandLandmarks.forEach((landmarks, handIdx) => {
         FINGERTIP_IDS.forEach((tipId) => {
-          const fKey = `${handIdx}_${tipId}`;
-          seen.add(fKey);
+          const fingerId = `h${handIdx}_f${tipId}`;
+          currentFrameFingers.add(fingerId);
+
           const lm = landmarks[tipId];
           const x = lm.x * canvas.width;
           const y = lm.y * canvas.height;
 
           const keyUnder = findKeyAt(x, y);
-          const isPressing = keyUnder && y >= keyUnder.triggerY;
-          const prevKey = fingerMap[fKey];
+          const isPressed = keyUnder && y >= keyUnder.triggerY;
 
-          if (isPressing) {
-            if (prevKey !== keyUnder) {
-              if (prevKey) {
-                prevKey.fingers.delete(fKey);
-                if (prevKey.fingers.size === 0) {
-                  prevKey.active = false;
-                  stopNote(prevKey.freq);
-                }
+          const activeVoiceId = `${fingerId}_${keyUnder ? keyUnder.id : ""}`;
+          const previousState = activeFingers[fingerId];
+
+          if (isPressed) {
+            if (!previousState || previousState.keyId !== keyUnder.id) {
+              // Release previous key if finger moved off it
+              if (previousState) {
+                stopNote(previousState.voiceId);
+                const prevKey = keyRectsRef.current.find(k => k.id === previousState.keyId);
+                if (prevKey) prevKey.active = false;
               }
-              keyUnder.fingers.add(fKey);
+              // Play new note
               keyUnder.active = true;
-              playNote(keyUnder.freq);
-              fingerMap[fKey] = keyUnder;
+              playNote(keyUnder.freq, activeVoiceId);
+              activeFingers[fingerId] = { keyId: keyUnder.id, voiceId: activeVoiceId };
             }
-          } else if (prevKey) {
-            prevKey.fingers.delete(fKey);
-            if (prevKey.fingers.size === 0) {
-              prevKey.active = false;
-              stopNote(prevKey.freq);
+          } else {
+            // Finger raised up or outside valid key region
+            if (previousState) {
+              stopNote(previousState.voiceId);
+              const prevKey = keyRectsRef.current.find(k => k.id === previousState.keyId);
+              if (prevKey) prevKey.active = false;
+              delete activeFingers[fingerId];
             }
-            delete fingerMap[fKey];
           }
 
-          drawFingertip(ctx, x, y, !!isPressing);
+          drawFingertip(ctx, x, y, !!isPressed);
         });
       });
     }
 
-    Object.keys(fingerMap).forEach((fKey) => {
-      if (!seen.has(fKey)) {
-        const k = fingerMap[fKey];
-        k.fingers.delete(fKey);
-        if (k.fingers.size === 0) {
-          k.active = false;
-          stopNote(k.freq);
-        }
-        delete fingerMap[fKey];
+    // Clean up untracked fingers that left screen scope
+    Object.keys(activeFingers).forEach((fingerId) => {
+      if (!currentFrameFingers.has(fingerId)) {
+        const state = activeFingers[fingerId];
+        stopNote(state.voiceId);
+        const key = keyRectsRef.current.find(k => k.id === state.keyId);
+        if (key) key.active = false;
+        delete activeFingers[fingerId];
       }
     });
 
@@ -271,20 +357,16 @@ export default function MiniOmegle() {
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
     } catch (err) {
-      setErrorMsg("Camera access failed: " + err.message + ". Check permissions and try again.");
+      setErrorMsg("Camera access failed: " + err.message);
       setPhase("error");
       return;
     }
 
     try {
-      await loadScript(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
-      );
-      await loadScript(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
-      );
+      await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
+      await loadScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
     } catch (err) {
-      setErrorMsg("Failed to load hand-tracking library: " + err.message);
+      setErrorMsg("Failed loading hand tracking dependencies: " + err.message);
       setPhase("error");
       return;
     }
@@ -294,27 +376,30 @@ export default function MiniOmegle() {
     const HandsCtor = window.Hands;
     const CameraCtor = window.Camera;
     if (!HandsCtor || !CameraCtor) {
-      setErrorMsg("Hand-tracking library did not initialize correctly.");
+      setErrorMsg("Hand tracking library failed initialization.");
       setPhase("error");
       return;
     }
 
     const hands = new HandsCtor({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
     });
+
     hands.setOptions({
       maxNumHands: 2,
       modelComplexity: 1,
       minDetectionConfidence: 0.6,
       minTrackingConfidence: 0.6,
     });
+
     hands.onResults(onResults);
     handsRef.current = hands;
 
     const camera = new CameraCtor(videoRef.current, {
       onFrame: async () => {
-        await hands.send({ image: videoRef.current });
+        if (videoRef.current) {
+          await hands.send({ image: videoRef.current });
+        }
       },
       width: 1280,
       height: 720,
@@ -335,13 +420,11 @@ export default function MiniOmegle() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
-    Object.values(voicesRef.current).forEach((v) => {
-      try { v.osc.stop(); } catch (e) {}
-    });
+    Object.keys(voicesRef.current).forEach((vId) => stopNote(vId));
     voicesRef.current = {};
     activeFingerMapRef.current = {};
     setPhase("idle");
-  }, []);
+  }, [stopNote]);
 
   useEffect(() => {
     const handleResize = () => resizeCanvas();
@@ -350,18 +433,15 @@ export default function MiniOmegle() {
       window.removeEventListener("resize", handleResize);
       stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resizeCanvas, stop]);
 
   return (
     <div style={styles.app}>
       {phase !== "running" && phase !== "loading" && (
         <div style={styles.startScreen}>
-          <h2 style={styles.h2}>🎹 Air Piano</h2>
+          <h2 style={styles.h2}>🎹 Visual Air Piano</h2>
           <p style={styles.p}>
-            Play piano in the air. Hold your hand up to the camera and dip a
-            fingertip down into a key to play it, like pressing a key floating
-            in space.
+            Dip your fingertips into the air keys displayed on screen to trigger realistic multi-note audio.
           </p>
           <button style={styles.primaryBtn} onClick={start}>
             Start Camera
@@ -373,7 +453,7 @@ export default function MiniOmegle() {
       {phase === "loading" && (
         <div style={styles.startScreen}>
           <h2 style={styles.h2}>🎹 Air Piano</h2>
-          <div style={styles.loadingText}>Loading camera and hand tracking…</div>
+          <div style={styles.loadingText}>Initializing camera & optical models…</div>
         </div>
       )}
 
@@ -383,9 +463,9 @@ export default function MiniOmegle() {
 
         <div style={styles.topbar}>
           <h1 style={styles.title}>
-            Air <span style={{ color: "#22d3ee" }}>Piano</span>
+            Air <span style={{ color: "#ec4899" }}>Piano</span>
           </h1>
-          <div style={styles.status}>tracking active</div>
+          <div style={styles.status}>Multi-Touch Polyphonic Active</div>
         </div>
 
         <div style={styles.controls}>
@@ -403,9 +483,9 @@ export default function MiniOmegle() {
             value={waveform}
             onChange={(e) => setWaveform(e.target.value)}
           >
-            <option value="triangle">Soft Piano</option>
-            <option value="sine">Mellow Sine</option>
-            <option value="sawtooth">Bright Synth</option>
+            <option value="triangle">Soft Piano (Triangle)</option>
+            <option value="sine">Mellow Synth (Sine)</option>
+            <option value="sawtooth">Bright Organ (Sawtooth)</option>
           </select>
           <button style={styles.select} onClick={stop}>
             Stop Camera
@@ -422,8 +502,8 @@ const styles = {
     width: "100%",
     height: "100vh",
     minHeight: 480,
-    background: "#0b0c10",
-    color: "#e9e9ef",
+    background: "#09090b",
+    color: "#f4f4f5",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     overflow: "hidden",
   },
@@ -434,31 +514,30 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    background: "radial-gradient(circle at 50% 30%, #1b1d2a, #0b0c10)",
+    background: "radial-gradient(circle at 50% 30%, #18181b, #09090b)",
     textAlign: "center",
     padding: 24,
   },
-  h2: { fontSize: 22, margin: "0 0 6px" },
+  h2: { fontSize: 24, margin: "0 0 8px" },
   p: {
-    color: "#8a8d9a",
+    color: "#a1a1aa",
     fontSize: 14,
-    maxWidth: 320,
+    maxWidth: 340,
     lineHeight: 1.5,
-    margin: "0 0 22px",
+    margin: "0 0 24px",
   },
   primaryBtn: {
-    background: "#7c5cff",
-    borderColor: "#7c5cff",
-    color: "white",
+    background: "#8b5cf6",
+    color: "#ffffff",
     fontWeight: 600,
-    border: "1px solid #7c5cff",
-    padding: "9px 14px",
-    borderRadius: 10,
-    fontSize: 13,
+    border: "none",
+    padding: "10px 18px",
+    borderRadius: 8,
+    fontSize: 14,
     cursor: "pointer",
   },
-  loadingText: { color: "#8a8d9a", fontSize: 13, marginTop: 12 },
-  errText: { color: "#ff6b6b", fontSize: 12, marginTop: 14, maxWidth: 320 },
+  loadingText: { color: "#a1a1aa", fontSize: 13, marginTop: 12 },
+  errText: { color: "#f87171", fontSize: 12, marginTop: 14, maxWidth: 320 },
   stage: { position: "absolute", inset: 0 },
   video: {
     position: "absolute",
@@ -468,7 +547,7 @@ const styles = {
     height: "100%",
     objectFit: "cover",
     transform: "scaleX(-1)",
-    filter: "brightness(0.85) saturate(1.05)",
+    filter: "brightness(0.75)",
   },
   canvas: {
     position: "absolute",
@@ -486,18 +565,18 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "14px 18px",
-    background: "linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)",
+    padding: "14px 20px",
+    background: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)",
     zIndex: 5,
   },
-  title: { fontSize: 16, fontWeight: 600, margin: 0, letterSpacing: 0.3 },
+  title: { fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: 0.5 },
   status: {
     fontSize: 12,
-    color: "#6ee7a0",
-    background: "rgba(20,22,29,0.7)",
-    padding: "5px 10px",
+    color: "#34d399",
+    background: "rgba(24, 24, 27, 0.8)",
+    padding: "6px 12px",
     borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.1)",
   },
   controls: {
     position: "absolute",
@@ -507,18 +586,17 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    padding: 14,
-    background: "linear-gradient(to top, rgba(0,0,0,0.6), transparent)",
+    gap: 12,
+    padding: 16,
+    background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)",
     zIndex: 5,
-    flexWrap: "wrap",
   },
   select: {
-    background: "#14161d",
-    color: "#e9e9ef",
-    border: "1px solid rgba(255,255,255,0.12)",
-    padding: "9px 14px",
-    borderRadius: 10,
+    background: "#18181b",
+    color: "#f4f4f5",
+    border: "1px solid rgba(255,255,255,0.15)",
+    padding: "8px 12px",
+    borderRadius: 8,
     fontSize: 13,
     cursor: "pointer",
   },
