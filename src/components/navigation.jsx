@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   PlusSquare,
   MessageCircle,
-  Menu,
   FileSearch,
   UserCircle,
   MapPin,
@@ -21,14 +20,17 @@ const tabs = [
 ];
 
 export default function Navigation() {
-  const [expanded, setExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  const itemRefs = useRef([]);
   const location = useLocation();
   const navigate = useNavigate();
 
   const batch = JSON.parse(localStorage.getItem('selectedBatch') || 'null');
   const batchId = batch?.batchId;
   const username = JSON.parse(localStorage.getItem('chat_anon_session') || 'null')?.username;
+
+  const activeIndex = tabs.findIndex((t) => t.path === location.pathname);
 
   useEffect(() => {
     if (!batchId || !username) return;
@@ -69,129 +71,108 @@ export default function Navigation() {
     }
   }, [location.pathname]);
 
+  // Position the sliding indicator under whichever tab is active,
+  // and re-measure on resize so it stays aligned.
+  useEffect(() => {
+    const measure = () => {
+      const node = itemRefs.current[activeIndex];
+      if (!node) {
+        setIndicator((prev) => ({ ...prev, width: 0 }));
+        return;
+      }
+      setIndicator({ left: node.offsetLeft, width: node.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [activeIndex, location.pathname]);
+
   if (location.pathname === "/" || location.pathname === "/login") return null;
 
   const go = (path) => {
-    setExpanded(false);
     navigate(path);
   };
 
   return (
-    <>
+    <div
+      className="fixed z-50 left-1/2"
+      style={{
+        bottom: "20px",
+        transform: "translateX(-50%)",
+        width: "min(92vw, 420px)",
+      }}
+    >
       <div
-        className="fixed inset-0 z-40 transition-opacity duration-300"
+        className="relative flex items-center border shadow-2xl"
         style={{
-          background: expanded ? "rgba(2, 6, 23, 0.45)" : "transparent",
-          opacity: expanded ? 1 : 0,
-          pointerEvents: expanded ? "auto" : "none",
-          backdropFilter: expanded ? "blur(10px)" : "blur(0px)",
-          WebkitBackdropFilter: expanded ? "blur(10px)" : "blur(0px)",
-        }}
-        onClick={() => setExpanded(false)}
-      />
-
-      <div
-        className="fixed z-50 flex justify-end"
-        style={{
-          bottom: "24px",
-          right: "16px",
-          left: expanded ? "16px" : "auto",
-          transition: "left 0.4s cubic-bezier(0.25, 1, 0.5, 1)",
+          height: "60px",
+          borderRadius: "28px",
+          padding: "0 8px",
+          background:
+            "linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(59, 130, 246, 0.22), rgba(168, 85, 247, 0.18))",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderColor: "rgba(255,255,255,0.12)",
+          boxShadow:
+            "0 10px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)",
         }}
       >
+        {/* Sliding active-tab indicator */}
         <div
-          className="overflow-hidden border shadow-2xl"
+          className="absolute top-1/2 pointer-events-none"
           style={{
-            height: "60px",
-            width: expanded ? "100%" : "60px",
-            borderRadius: expanded ? "28px" : "9999px",
-            padding: expanded ? "0 10px" : "0",
-            background:
-              "linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(59, 130, 246, 0.22), rgba(168, 85, 247, 0.18))",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            borderColor: "rgba(255,255,255,0.12)",
-            boxShadow:
-              "0 10px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)",
+            left: indicator.left,
+            width: indicator.width,
+            height: "44px",
+            transform: "translateY(-50%)",
+            borderRadius: "16px",
+            background: "rgba(255,255,255,0.20)",
+            boxShadow: "0 4px 16px rgba(56,189,248,0.25)",
+            opacity: indicator.width ? 1 : 0,
             transition:
-              "width 0.4s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.3s ease, padding 0.4s ease",
+              "left 0.35s cubic-bezier(0.25, 1, 0.5, 1), width 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease",
           }}
-        >
-          {expanded ? (
-            <div className="flex w-full h-full items-center justify-around animate-fade-in">
-              {tabs.map(({ icon: Icon, path }) => {
-                const isActive = location.pathname === path;
-                const isChat = path === '/chat';
-                return (
-                  <button
-                    key={path}
-                    onClick={() => go(path)}
-                    className="flex items-center justify-center flex-1 h-full active:scale-90 transition-transform duration-150"
-                  >
-                    <div
-                      className={`relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
-                        isActive
-                          ? "bg-white/20 shadow-lg shadow-cyan-500/20"
-                          : "bg-white/5 hover:bg-white/10"
-                      }`}
-                    >
-                      <Icon
-                        size={21}
-                        strokeWidth={isActive ? 2.5 : 1.9}
-                        className={isActive ? "text-white" : "text-white/70"}
-                        fill={isActive ? "currentColor" : "none"}
-                      />
-                      {isChat && unreadCount > 0 && (
-                        <div className="absolute -top-1 -right-1 min-w-[17px] h-[17px] bg-rose-500 rounded-full flex items-center justify-center px-1">
-                          <span className="text-[9px] font-black text-white leading-none">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
+        />
+
+        {tabs.map(({ icon: Icon, path }, i) => {
+          const isActive = i === activeIndex;
+          const isChat = path === '/chat';
+          return (
             <button
-              onClick={() => setExpanded(true)}
-              className="relative flex items-center justify-center w-full h-full text-white active:scale-90 transition-transform duration-150"
-              aria-label="Open navigation menu"
+              key={path}
+              ref={(el) => (itemRefs.current[i] = el)}
+              onClick={() => go(path)}
+              className="relative flex items-center justify-center flex-1 h-full active:scale-90 transition-transform duration-150"
             >
-              {(() => {
-                const CurrentIcon = tabs.find((t) => t.path === location.pathname)?.icon || Menu;
-                return <CurrentIcon size={22} strokeWidth={2.2} />;
-              })()}
-              {location.pathname !== '/chat' && unreadCount > 0 && (
-                <div className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-rose-500 rounded-full flex items-center justify-center px-1">
-                  <span className="text-[9px] font-black text-white leading-none">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                </div>
-              )}
+              <div className="relative w-11 h-11 flex items-center justify-center">
+                <Icon
+                  size={21}
+                  strokeWidth={isActive ? 2.5 : 1.9}
+                  className={isActive ? "text-white" : "text-white/70"}
+                  fill={isActive ? "currentColor" : "none"}
+                  style={{ transition: "color 0.25s ease, stroke-width 0.25s ease" }}
+                />
+                {isChat && unreadCount > 0 && (
+                  <div className="absolute -top-1 -right-1 min-w-[17px] h-[17px] bg-rose-500 rounded-full flex items-center justify-center px-1">
+                    <span className="text-[9px] font-black text-white leading-none">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  </div>
+                )}
+              </div>
             </button>
-          )}
-        </div>
+          );
+        })}
       </div>
 
       <style>{`
-        .animate-fade-in {
-          animation: fadeInEffect 0.25s ease-out forwards;
-          animation-delay: 0.08s;
-          opacity: 0;
-        }
-        @keyframes fadeInEffect {
-          from { opacity: 0; transform: translateY(6px) scale(0.96); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
         body.comments-open .nav-container-wrapper {
           display: none !important;
           opacity: 0 !important;
           pointer-events: none !important;
         }
       `}</style>
-    </>
+    </div>
   );
 }
 

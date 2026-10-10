@@ -67,6 +67,39 @@ export default function AddPost() {
       if (studentData.nickname && studentData.nickname.trim() !== "") {
         postPayload.nickname = studentData.nickname.trim();
       }
+  
+      // Check the post using the Python API first
+      let moderationResult;
+
+      try {
+        const response = await fetch(
+          "http://127.0.0.1:8000/check-post",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              text: caption.trim(),
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Python API request failed");
+        }
+
+        moderationResult = await response.json();
+      } catch (error) {
+        alert("Post checking service is unavailable. Please try again.");
+        return;
+      }
+
+      if (!moderationResult.allowed) {
+        alert(moderationResult.message);
+        return;
+      }
+	
 
       // 4. Insert into the main 'posts' table
       const { data: postData, error: postError } = await supabase
