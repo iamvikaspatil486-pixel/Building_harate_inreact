@@ -1,0 +1,6 @@
+{
+  "appId": "com.campus.app",
+  "appName": "CampusLeaks",
+  "webDir": "dist",
+  "server": { "url": "https://building-harate-inreact.vercel.app" }
+}
