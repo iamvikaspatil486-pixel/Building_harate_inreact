@@ -3,6 +3,9 @@ name: Build APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Make sure webDir exists (app loads from server.url anyway)
+      - name: Make sure webDir exists
         run: |
           mkdir -p dist
           [ -f dist/index.html ] || echo "<html></html>" > dist/index.html
@@ -36,8 +39,12 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk CampusLeaks.apk
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: harate-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: latest
+          name: CampusLeaks (latest)
+          files: CampusLeaks.apk
