@@ -32,10 +32,26 @@ jobs:
       - name: Add Android platform if missing
         run: '[ -d android ] || npx cap add android'
 
-      - name: Generate app icons
+      - name: Check icon source
         run: |
-          npm install --no-save @capacitor/assets
-          npx capacitor-assets generate --android --iconBackgroundColor "#14100f" --iconBackgroundColorDark "#14100f"
+          ls -la assets
+          sudo apt-get install -y imagemagick
+          identify assets/icon-only.png
+
+      - name: Put icon into Android project
+        run: |
+          RES=android/app/src/main/res
+          rm -rf $RES/mipmap-anydpi-v26
+          for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            d=${pair%%:*}
+            s=${pair##*:}
+            mkdir -p $RES/mipmap-$d
+            for n in ic_launcher ic_launcher_round; do
+              convert assets/icon-only.png -resize ${s}x${s} $RES/mipmap-$d/$n.png
+            done
+          done
+          echo "--- icons written ---"
+          ls -la $RES/mipmap-*
 
       - name: Sync Capacitor
         run: npx cap sync android
