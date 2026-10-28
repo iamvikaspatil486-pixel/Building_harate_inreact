@@ -1,30 +1,38 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 const TARGET = 4 * 60 * 60;
-const STORAGE_KEY = "study-timer-v1";
-const HISTORY_KEY = "study-history-v1";
-
-const keyOf = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const todayKey = () => keyOf(new Date());
-
-const initialSession = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved?.date === todayKey()) return saved;
-  } catch {}
-  return { date: todayKey(), elapsed: 0, startedAt: null };
-};
-
-const initialHistory = () => {
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY)) || {};
-  } catch {
-    return {};
-  }
-};
+const STORAGE_KEY = "study-timer-v2";
 
 const pad = (n) => String(n).padStart(2, "0");
+const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayKey = () => keyOf(new Date());
+const nextDayStart = (key) => {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d + 1).getTime();
+};
 const hm = (s) => `${Math.floor(s / 3600)}h ${pad(Math.floor((s % 3600) / 60))}m`;
+
+const freshSession = () => ({ date: todayKey(), elapsed: 0, startedAt: null });
+
+const loadLocal = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved?.date) return saved;
+  } catch {}
+  return freshSession();
+};
+
+// A session left running past midnight gets credited up to the end of its day
+const closeStale = (s) => {
+  if (!s.startedAt) return { ...s };
+  const end = Math.min(nextDayStart(s.date), Date.now());
+  return {
+    date: s.date,
+    elapsed: s.elapsed + Math.max(0, Math.floor((end - s.startedAt) / 1000)),
+    startedAt: null,
+  };
+};
 
 // Fixed-width digits so the clock never jitters
 const Digits = ({ value }) =>
@@ -34,49 +42,156 @@ const Digits = ({ value }) =>
     </span>
   ));
 
+const Styles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Manrope:wght@400;500;600;700&display=swap');
+    .st-display { font-family: 'Fraunces', Georgia, 'Times New Roman', serif; font-variant-numeric: tabular-nums; }
+    .st-ui { font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    @keyframes st-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    .st-live { animation: st-pulse 1.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .st-live { animation: none; } }
+  `}</style>
+);
+
+/* ---------- Tracker ---------- */
 const CX = 140;
 const R = 118;
 const CIRC = 2 * Math.PI * R;
 const TICKS = 48; // one tick every 5 minutes across the 4 hour goal
 
 export default function StudyTracker() {
-  const [session, setSession] = useState(initialSession);
-  const [history, setHistory] = useState(initialHistory);
+  const [session, setSession] = useState(loadLocal);
+  const [history, setHistory] = useState({});
   const [now, setNow] = useState(Date.now());
+  const [ready, setReady] = useState(false);
+  const [sync, setSync] = useState("idle"); // idle | saving | error
+
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const readyRef = useRef(false);
+  const dirtyRef = useRef(false); // true when the last save failed
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    if (session.elapsed > 0) {
-      setHistory((h) =>
-        h[session.date] === session.elapsed
-          ? h
-          : { ...h, [session.date]: session.elapsed }
-      );
-    }
   }, [session]);
 
-  useEffect(() => {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  }, [history]);
+  const persist = useCallback(
+    async (s) => {
+      setSync("saving");
+      const { error } = await supabase.from("study_days").upsert(
+        {
+          day: s.date,
+          elapsed_seconds: s.elapsed,
+          started_at: s.startedAt ? new Date(s.startedAt).toISOString() : null,
+        },
+        { onConflict: "day" }
+      );
+      if (error) console.error("study_days save failed:", error.message);
+      dirtyRef.current = !!error;
+      setSync(error ? "error" : "idle");
+      return !error;
+    },
+    []
+  );
+
+  // Load history + today's row from Supabase
+  const bootstrap = useCallback(async () => {
+    const today = todayKey();
+    try {
+      const t = new Date();
+      const since = keyOf(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 365));
+      const { data: rows, error } = await supabase
+        .from("study_days")
+        .select("day, elapsed_seconds, started_at")
+        .gte("day", since)
+        .order("day", { ascending: true });
+      if (error) throw error;
+
+      const hist = {};
+      let todayRow = null;
+      for (const r of rows) {
+        if (r.day === today) { todayRow = r; continue; }
+        if (r.started_at) {
+          const c = closeStale({ date: r.day, elapsed: r.elapsed_seconds, startedAt: Date.parse(r.started_at) });
+          hist[r.day] = c.elapsed;
+          await persist(c);
+        } else {
+          hist[r.day] = r.elapsed_seconds;
+        }
+      }
+
+      const local = sessionRef.current;
+      if (local.date !== today && (local.elapsed > 0 || local.startedAt)) {
+        const closed = closeStale(local);
+        if (closed.elapsed > (hist[closed.date] || 0)) {
+          hist[closed.date] = closed.elapsed;
+          await persist(closed);
+        }
+      }
+
+      let cur;
+      if (dirtyRef.current && local.date === today) cur = local;
+      else if (todayRow)
+        cur = {
+          date: today,
+          elapsed: todayRow.elapsed_seconds,
+          startedAt: todayRow.started_at ? Date.parse(todayRow.started_at) : null,
+        };
+      else cur = local.date === today ? local : freshSession();
+
+      if (!todayRow && (cur.elapsed > 0 || cur.startedAt)) await persist(cur);
+
+      setSession(cur);
+      sessionRef.current = cur;
+      setHistory(hist);
+    } catch (e) {
+      console.error("study_days load failed:", e.message || e);
+      setSync("error");
+      if (sessionRef.current.date !== today) {
+        const fresh = freshSession();
+        setSession(fresh);
+        sessionRef.current = fresh;
+      }
+    } finally {
+      readyRef.current = true;
+      setReady(true);
+    }
+  }, [persist]);
 
   useEffect(() => {
-    const refresh = () => {
+    bootstrap();
+  }, [bootstrap]);
+
+  // Clock tick, midnight rollover, re-sync when the tab comes back
+  useEffect(() => {
+    const tick = () => {
       setNow(Date.now());
-      setSession((old) =>
-        old.date === todayKey()
-          ? old
-          : { date: todayKey(), elapsed: 0, startedAt: null }
-      );
+      if (!readyRef.current) return;
+      const cur = sessionRef.current;
+      if (cur.date !== todayKey()) {
+        const closed = closeStale(cur);
+        const fresh = freshSession();
+        setSession(fresh);
+        sessionRef.current = fresh;
+        if (closed.elapsed > 0) {
+          setHistory((h) => ({ ...h, [closed.date]: closed.elapsed }));
+          persist(closed);
+        }
+      }
     };
-    const id = setInterval(refresh, 1000);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
+    const onVisible = () => {
+      tick();
+      if (document.visibilityState === "visible" && readyRef.current) bootstrap();
+    };
+    const id = setInterval(tick, 1000);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(id);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [bootstrap, persist]);
 
   const running = session.startedAt !== null;
   const elapsed =
@@ -93,20 +208,23 @@ export default function StudyTracker() {
 
   function start() {
     if (running) return;
-    setSession({ ...session, startedAt: Date.now() });
+    const next = { ...session, startedAt: Date.now() };
+    setSession(next);
+    sessionRef.current = next;
     setNow(Date.now());
+    persist(next);
   }
 
   function stop() {
     if (!running) return;
-    const total =
-      session.elapsed +
-      Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000));
-    setSession({ ...session, elapsed: total, startedAt: null });
+    const total = session.elapsed + Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000));
+    const next = { ...session, elapsed: total, startedAt: null };
+    setSession(next);
+    sessionRef.current = next;
     setNow(Date.now());
+    persist(next);
   }
 
-  // Week (Mon–Sun) built from saved history; today is live
   const todayIndex = (new Date().getDay() + 6) % 7;
   const week = useMemo(() => {
     const t = new Date();
@@ -119,15 +237,8 @@ export default function StudyTracker() {
 
   const streak = useMemo(() => {
     const t = new Date();
-    let count = 0;
-    let startOffset = 0;
-    if (elapsed >= TARGET) {
-      count = 1;
-      startOffset = 1;
-    } else {
-      startOffset = 1;
-    }
-    for (let i = startOffset; i < 365; i++) {
+    let count = elapsed >= TARGET ? 1 : 0;
+    for (let i = 1; i < 365; i++) {
       const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - i);
       if ((history[keyOf(d)] || 0) >= TARGET) count++;
       else break;
@@ -145,16 +256,27 @@ export default function StudyTracker() {
     month: "long",
   });
 
+  if (!ready) {
+    return (
+      <main className="st-ui flex min-h-screen items-center justify-center bg-[#0B1F24] text-sm text-[#8FB0AB]">
+        <Styles />
+        Loading your study time…
+      </main>
+    );
+  }
+
+  const syncText =
+    sync === "error"
+      ? "Couldn’t sync. Your time is kept on this device and will retry on your next action."
+      : sync === "saving"
+      ? "Saving…"
+      : running
+      ? "The timer keeps running while you use other apps."
+      : "Synced.";
+
   return (
     <main className="min-h-screen bg-[#0B1F24] px-5 py-8 text-[#E8F1EC] sm:px-8 sm:py-12 lg:px-12">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Manrope:wght@400;500;600;700&display=swap');
-        .st-display { font-family: 'Fraunces', Georgia, 'Times New Roman', serif; font-variant-numeric: tabular-nums; }
-        .st-ui { font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif; }
-        @keyframes st-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-        .st-live { animation: st-pulse 1.6s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .st-live { animation: none; } }
-      `}</style>
+      <Styles />
 
       <div className="st-ui mx-auto max-w-5xl">
         <header className="flex flex-wrap items-end justify-between gap-2">
@@ -172,7 +294,6 @@ export default function StudyTracker() {
           <section aria-label="Today's study timer" className="mx-auto w-full max-w-[24rem]">
             <div className="relative aspect-square">
               <svg viewBox="0 0 280 280" className="h-full w-full" role="img" aria-label={`${Math.floor(progress * 100)} percent of daily goal`}>
-                {/* tick marks: each one is 5 minutes */}
                 {Array.from({ length: TICKS }).map((_, i) => {
                   const a = (i / TICKS) * 2 * Math.PI - Math.PI / 2;
                   const major = i % 12 === 0;
@@ -193,10 +314,7 @@ export default function StudyTracker() {
                     />
                   );
                 })}
-
-                {/* track */}
                 <circle cx={CX} cy={CX} r={R} fill="none" stroke="#ffffff" strokeOpacity="0.07" strokeWidth="14" />
-                {/* progress */}
                 <circle
                   cx={CX}
                   cy={CX}
@@ -211,13 +329,7 @@ export default function StudyTracker() {
                   className="transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
                 />
                 {progress > 0 && (
-                  <circle
-                    cx={dotX}
-                    cy={dotY}
-                    r="4"
-                    fill="#0B1F24"
-                    className={running ? "st-live" : ""}
-                  />
+                  <circle cx={dotX} cy={dotY} r="4" fill="#0B1F24" className={running ? "st-live" : ""} />
                 )}
               </svg>
 
@@ -231,11 +343,7 @@ export default function StudyTracker() {
                   <Digits value={s} />
                 </div>
                 <p className="mt-4 flex items-center gap-2 text-sm text-[#8FB0AB]">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      running ? "st-live bg-[#B8F2C9]" : "bg-[#8FB0AB]/50"
-                    }`}
-                  />
+                  <span className={`h-2 w-2 rounded-full ${running ? "st-live bg-[#B8F2C9]" : "bg-[#8FB0AB]/50"}`} />
                   {running ? "Focusing" : elapsed > 0 ? "Paused" : "Ready"}
                 </p>
               </div>
@@ -251,10 +359,8 @@ export default function StudyTracker() {
             >
               {running ? "Pause session" : elapsed > 0 ? "Resume session" : "Start studying"}
             </button>
-            <p className="mt-3 text-center text-xs text-[#8FB0AB]">
-              {running
-                ? "The timer keeps running while you use other apps."
-                : "Your time is saved on this device."}
+            <p className={`mt-3 text-center text-xs ${sync === "error" ? "text-[#F3C969]" : "text-[#8FB0AB]"}`}>
+              {syncText}
             </p>
           </section>
 
@@ -268,11 +374,7 @@ export default function StudyTracker() {
               <div className="flex items-baseline justify-between py-4">
                 <dt className="text-sm text-[#8FB0AB]">{done ? "Goal" : "Left to reach goal"}</dt>
                 <dd className="st-display text-2xl font-semibold">
-                  {done ? (
-                    <span className="text-[#F3C969]">Reached</span>
-                  ) : (
-                    hm(remainingSecs)
-                  )}
+                  {done ? <span className="text-[#F3C969]">Reached</span> : hm(remainingSecs)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between py-4">
@@ -301,11 +403,7 @@ export default function StudyTracker() {
                         style={{ height: `${d.value > 0 ? Math.max(6, pct) : 0}%` }}
                       />
                     </div>
-                    <span
-                      className={`text-xs ${
-                        d.isToday ? "font-bold text-[#B8F2C9]" : "text-[#8FB0AB]"
-                      }`}
-                    >
+                    <span className={`text-xs ${d.isToday ? "font-bold text-[#B8F2C9]" : "text-[#8FB0AB]"}`}>
                       {d.label}
                     </span>
                   </div>
