@@ -26,6 +26,7 @@ import Rfeedback from './components/Rfeedback';
 import ResetPassword from './pages/resetpassword';
 import AirPiano from './pages/airpiano';
 import LoginCard from './pages/logincard';
+import StudyTracker from './pages/app';
 
 function AppLayout({ session, setSession }) {
   const location = useLocation();
@@ -72,6 +73,7 @@ const currentPath = location.pathname.toLowerCase();
         <Route path="/SearchConfession" element={isLoggedIn ? <SearchConfession /> : <Navigate to="/" replace />} />
         <Route path="/ViewConfession/:id" element={isLoggedIn ? <ViewConfession /> : <Navigate to="/" replace />} />
       <Route path="/airpiano" element={isLoggedIn ? <AirPiano /> : <Navigate to="/" replace />} />
+     <Route path="/studyapp" element={isLoggedIn ? <StudyTracker /> : <Navigate to="/" replace />} />
 
         {/* Catch-all */}
         <Route path="*" element={<Navigate to={isLoggedIn ? "/home" : "/"} replace />} />
